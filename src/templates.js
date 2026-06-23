@@ -1,7 +1,14 @@
+// Service request datetimes are stored in the DB as UTC. Emails are read by
+// Rhode Island volunteers, so all times/dates must be displayed in Eastern time.
+// Pin the timeZone explicitly so rendering is correct regardless of the server's
+// own timezone (the production host runs as UTC).
+const DISPLAY_TIME_ZONE = 'America/New_York';
+
 function formatDateOnly(isoDateTime) {
   if (!isoDateTime) return '';
   const date = new Date(isoDateTime);
   return date.toLocaleString('en-US', {
+    timeZone: DISPLAY_TIME_ZONE,
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -13,9 +20,10 @@ function formatTimeOnly(isoDateTime) {
   if (!isoDateTime) return '';
   const date = new Date(isoDateTime);
   return date.toLocaleString('en-US', {
+    timeZone: DISPLAY_TIME_ZONE,
     hour: 'numeric',
     minute: '2-digit',
-    meridiem: 'short',
+    hour12: true,
   });
 }
 
@@ -230,6 +238,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
     start_at,
     appt_time,
     return_time,
+    finish_at,
     transportation_type,
     service_notes,
   } = requestData;
@@ -238,7 +247,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
   const pickupTime = formatTimeOnly(start_at);
   const appointmentTime = formatTimeOnly(appt_time);
   const returnPickupTime = formatTimeOnly(return_time);
-  const dropoffTime = formatTimeOnly(return_time);
+  const dropoffTime = formatTimeOnly(finish_at);
 
   const memberAddress = member_address
     ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone || ''}<br>${member_cell ? `${member_cell} (cell)` : ''}`
@@ -369,6 +378,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
     start_at,
     appt_time,
     return_time,
+    finish_at,
     transportation_type,
     service_notes,
     emergency_contact_name,
@@ -380,7 +390,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
   const pickupTime = formatTimeOnly(start_at);
   const appointmentTime = formatTimeOnly(appt_time);
   const returnPickupTime = formatTimeOnly(return_time);
-  const dropoffTime = formatTimeOnly(return_time);
+  const dropoffTime = formatTimeOnly(finish_at);
 
   const memberAddress = member_address
     ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone || ''}<br>${member_cell ? `${member_cell} (cell)` : ''}`

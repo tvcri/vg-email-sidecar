@@ -31,13 +31,18 @@ const SERVICE_TYPE_TO_CAPABILITY = {
   'Errand: Other': 'Errands',
 };
 
+// Service dates are stored as UTC; the subject must show the Eastern-time date so
+// it matches the body and the volunteer's local date (the server runs as UTC).
 function formatDateForSubject(isoDateTime) {
   if (!isoDateTime) return '';
   const date = new Date(isoDateTime);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const year = date.getFullYear();
-  return `${month}/${day}/${year}`;
+  // en-US M/D/YYYY in Eastern time.
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function getFirstName(fullName) {
