@@ -89,7 +89,7 @@ non-exact hits.)
 | `id` | Subject `#{id}` | Authoritative. Skip if already in DB. |
 | `status` | constant | Always `'Open'`. |
 | `member_person_id` | DB lookup of `member_name` (from subject) in `person` | NULL + WARNING on 0 / >1 match. |
-| `village_id` | DB: `person.village_id` of matched member | **NOT NULL** — if member unresolved, emit row with placeholder `NULL` and a prominent `-- WARNING: village_id must be set manually`. |
+| `village_id` | DB: `person.village_id` of matched member | **NOT NULL** — if member unresolved, the row is emitted **commented out** with a prominent `-- WARNING: village_id must be set manually` (NULL would violate the constraint). |
 | `start_at` | Subject `Service Date: M/D/YYYY` | Date only; time refined from body pickup time when present. |
 | `created_at` | Email `Date` header | |
 | `service_name` | Body header line ("...seeking someone to provide **X** for...") | Falls back to NULL + WARNING if unparseable. |
@@ -108,8 +108,18 @@ parsed.
 
 ## Ambiguity handling
 
-Always emit an `INSERT` (never halt, never silently drop), and prepend
-`-- WARNING: <reason>` comment lines above the affected statement when:
+Two categories of `INSERT`:
+
+- **Clean rows** — fully resolved, no warnings — are emitted as runnable
+  `INSERT` statements.
+- **Flagged rows** — anything that triggered a warning — are emitted with
+  `-- WARNING: <reason>` lines **and the `INSERT` statement itself commented out**
+  (every line of the statement prefixed with `-- `). The operator must read the
+  warning, fix the value, and uncomment the statement to run it. This prevents
+  accidentally executing an incomplete or invalid row (e.g. a `NULL` `village_id`,
+  which would violate the `NOT NULL` constraint anyway).
+
+A row is flagged (commented out) when:
 - `member_name` matches zero or multiple `person` rows (→ `member_person_id` NULL,
   and `village_id` NULL needing manual fill).
 - `service_name` cannot be parsed from the body.
@@ -119,6 +129,9 @@ Emit `-- SKIPPED id=N (already exists in service_request)` instead of an `INSERT
 when the id is already present in the DB. Emit `-- MISSING EMAIL for id=N` when no
 Sent email matches that id (nothing to recover from).
 
+To make the commented-out statements easy to find and fix, each is also written
+to `report.json` with its id and the list of reasons.
+
 ## Module structure
 
 ```
@@ -127,7 +140,7 @@ src/recreate/
   gmail-reader.js  # readonly-scoped auth; list + get + decode message body/headers
   parser.js        # PURE: subject parser + body field extractors (string in -> fields out)
   resolver.js      # DB lookups: member_person_id, village_id, existing ids
-  sql-writer.js    # build INSERT statements + WARNING/SKIPPED comments; value escaping
+  sql-writer.js    # build INSERT statements (commenting out flagged rows) + WARNING/SKIPPED/MISSING comments; value escaping
 ```
 
 Reuses existing repo infrastructure: `dotenv`, `googleapis`, `mysql2`, and the
@@ -170,8 +183,10 @@ write out.sql, report.json
   Request`. Assert extracted `id`, `member_name`, `service_date`, `service_name`,
   `description`, and destination/time fields. Include a malformed-subject fixture
   and a missing-body-field fixture to exercise the NULL/WARNING paths.
-- **`sql-writer.js`**: assert value escaping (quotes, NULLs, dates) and that
-  warnings/skips render as comments.
+- **`sql-writer.js`**: assert value escaping (quotes, NULLs, dates); that clean
+  rows render as runnable `INSERT`s; that flagged rows render with `-- WARNING`
+  lines **and every line of the `INSERT` commented out**; and that
+  skips/missing render as comments.
 - **`resolver.js` / `gmail-reader.js`:** thin I/O wrappers, verified during a live
   dry run against the real mailbox + DB (read-only), checking the generated SQL
   before any manual execution.
