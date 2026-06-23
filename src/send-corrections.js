@@ -1,6 +1,6 @@
 'use strict';
 
-// One-off: re-send each Ride: service request (id <= 2003) as a CORRECTED
+// One-off: re-send each Ride: service request (id 1024..2003) as a CORRECTED
 // open-request email to the same volunteers. The original emails showed ride
 // times 4h ahead (old UTC-rendering bug, since fixed in templates.js); this
 // re-renders the corrected DB rows through the current Eastern-time template.
@@ -29,7 +29,7 @@ function getDbConfig() {
 const TARGET_QUERY = `
   SELECT id
   FROM service_request
-  WHERE id <= 2003 AND service_name LIKE 'Ride:%'
+  WHERE id >= 1024 AND id <= 2003 AND service_name LIKE 'Ride:%'
   ORDER BY id
 `;
 
@@ -124,7 +124,7 @@ function injectTestBanner(html, intendedVolunteers) {
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const ids = await getTargetIds();
-  console.log(`Found ${ids.length} target Ride: service request(s) (id <= 2003).`);
+  console.log(`Found ${ids.length} target Ride: service request(s) (id 1024..2003).`);
   if (dryRun) console.log('[DRY RUN] no emails will be sent.');
 
   let sent = 0, skipped = 0, failed = 0;
