@@ -14,6 +14,7 @@ const mysql = require('mysql2/promise');
 const { getServiceRequest, getVolunteersByCapability } = require('./db');
 const { getTestConfig } = require('./config');
 const { buildRidesOpenRequestTemplate } = require('./templates');
+const { sendEmail } = require('./gmail');
 
 function getDbConfig() {
   return {
@@ -123,8 +124,62 @@ function injectTestBanner(html, intendedVolunteers) {
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const ids = await getTargetIds();
-  console.log(`Found ${ids.length} target Ride: service request(s) (id <= 2003): ${ids.join(', ')}`);
+  console.log(`Found ${ids.length} target Ride: service request(s) (id <= 2003).`);
   if (dryRun) console.log('[DRY RUN] no emails will be sent.');
+
+  let sent = 0, skipped = 0, failed = 0;
+
+  for (const id of ids) {
+    try {
+      const requestData = await getServiceRequest(id);
+      if (!requestData) {
+        console.warn(`SR #${id}: not found, skipping`);
+        skipped++;
+        continue;
+      }
+
+      const recipients = await resolveRecipients(requestData);
+      if (!recipients) {
+        console.warn(`SR #${id}: no volunteers for 'Rides', skipping`);
+        skipped++;
+        continue;
+      }
+
+      const subject = buildSubject(requestData);
+
+      if (dryRun) {
+        console.log(`SR #${id} -> [${recipients.bcc}]${recipients.isTestMode ? ' (TEST MODE)' : ''} :: ${subject}`);
+        skipped++;
+        continue;
+      }
+
+      let html = buildRidesOpenRequestTemplate('Volunteer', requestData);
+      html = injectCorrectionNotice(html);
+      if (recipients.isTestMode) {
+        html = injectTestBanner(html, recipients.intendedVolunteers);
+      }
+
+      const result = await sendEmail({
+        to: 'services@villagecommonri.org',
+        bcc: recipients.bcc,
+        subject,
+        html,
+      });
+
+      if (result.success) {
+        console.log(`SR #${id}: sent -- ${subject}`);
+        sent++;
+      } else {
+        console.error(`SR #${id}: send failed -- ${result.error}`);
+        failed++;
+      }
+    } catch (err) {
+      console.error(`SR #${id}: error -- ${err.message}`);
+      failed++;
+    }
+  }
+
+  console.log(`\nCorrection run complete: ${sent} sent, ${skipped} skipped, ${failed} failed.`);
 }
 
 // Require-safe: only run when invoked directly, so tests can import helpers
