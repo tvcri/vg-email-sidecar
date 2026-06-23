@@ -7,38 +7,49 @@
 ## Problem
 
 A set of `service_request` rows were accidentally deleted from the Village Green
-(`vg`) database. The corresponding "open request" emails sent to volunteers still
-exist in the Gmail **Sent** folder of `services@villagecommonri.org`. Each email's
-subject line and HTML body contain enough information to reconstruct the deleted
-rows. This utility reads those Sent emails, parses them, and emits **reviewable
-SQL** (`INSERT` statements) that an operator runs manually to restore the rows
-with their **original IDs**.
+(`vg`) database. The corresponding "open request" emails sent to volunteers have
+been collected into a single local file, **`./Recovery_emails.eml`** — an outer
+email whose attachments are the original request emails (one `message/rfc822`
+attachment per request). Each attached email's subject line and HTML body contain
+enough information to reconstruct the deleted rows. This utility reads that local
+`.eml` file, parses the attached emails, and emits **reviewable SQL** (`INSERT`
+statements) that an operator runs manually to restore the rows with their
+**original IDs**.
 
-This is a one-off script. It does **not** write to the database. It produces SQL
+This is a one-off script. It reads a local file only — **no Gmail/network access
+and no OAuth** are required. It does **not** write to the database. It produces SQL
 and a JSON report for human review.
 
 ## Scope
 
-**In scope:** A specific, known range of open service requests — IDs **#1024
-through #1040** (17 requests), all with subject prefix `SR Request`. Verified
-2026-06-23: all 17 IDs are absent from `service_request`, so all 17 are to be
-recovered (none are survivors to skip).
+**In scope:** The open service requests attached to `./Recovery_emails.eml` —
+IDs **#1024 through #1040** (17 requests), all with subject prefix `SR Request`.
+Verified 2026-06-23: all 17 IDs are present as attachments and all 17 are absent
+from `service_request`, so all 17 are to be recovered (none are survivors to skip).
+
+**Note — duplicate:** ID **#1024 appears twice** in the file, with two different
+service dates (6/24/2026 and 6/26/2026). The script must detect duplicate ids and
+flag them (emit both, commented out, with a `-- WARNING: duplicate id` so the
+operator picks the correct one). See Duplicate handling.
 
 **Out of scope (explicitly):**
 - Confirmed requests (`SR Conf`). There are none to recover. No confirmed-email
   parsing, no volunteer-recipient resolution.
+- Gmail / network access and OAuth — the source is a local file.
 - Live database writes from this utility.
 - Restoring `person` / `member` rows — those still exist and are joined to, not
   duplicated onto, `service_request`.
 
 ## Key facts established during design
 
-1. **The send token cannot read mail.** `services-mailer-token.json` is scoped to
-   `gmail.send` only; `messages.list` fails with "insufficient authentication
-   scopes." **Resolution:** re-run the OAuth consent flow with
-   `gmail.send` + `gmail.readonly` and overwrite `services-mailer-token.json`.
-   The oauth helper at `../oauth-dance/get-refresh-token.js` will have
-   `gmail.readonly` added to its `SCOPES` array.
+1. **Source is the local `./Recovery_emails.eml`.** It is a `multipart/mixed`
+   email; each request is a `message/rfc822` attachment named e.g.
+   `SR Request #1040-For Masullo, Linda-Service Date: 7/1/2026.eml`. Some
+   attachments are forwarded replies (`Re: SR Request #…` wrapping the original);
+   the parser uses the **inner-most original message** for the subject and body.
+   Bodies are quoted-printable encoded (soft `=\n` line breaks) and must be decoded
+   before parsing. **No Gmail read access / OAuth is needed** (this supersedes the
+   earlier plan to re-authorize the token with `gmail.readonly`).
 2. **`village_id` is `NOT NULL`** on `service_request`. Every other recoverable
    column is nullable. `village_id` must be resolved (from the member's
    `person.village_id`) or the row flagged for manual fill.
@@ -50,49 +61,38 @@ recovered (none are survivors to skip).
    `-- SKIPPED` note rather than an `INSERT`. For this run none of 1024–1040 will
    trigger it, but it protects against re-runs and accidental overlap.
 5. **All recovered rows have `status = 'Open'`** and `volunteer_person_id = NULL`.
+6. **#1024 is duplicated** in the source (two service dates). See Duplicate
+   handling.
 
-## Source selection
+## Source: parsing `Recovery_emails.eml`
 
-We recover an explicit ID range, **#1024–#1040** (configurable via CLI:
-`--from=1024 --to=1040`). Gmail cannot search a numeric range directly, so the
-script issues **one read-only search per id**:
+The script reads the single local file (path via `--in`, default
+`./Recovery_emails.eml`) and walks its MIME tree:
 
-```
-in:sent subject:"SR Request #<id>"
-```
+1. Parse the outer `multipart/mixed` message.
+2. Collect every `message/rfc822` attachment.
+3. For each attachment, descend to the **inner-most `message/rfc822`** (unwrapping
+   any forwarded `Re:` wrapper) to get the original request's `Subject`, `Date`
+   header, and `text/html` body.
+4. Decode the body (quoted-printable) before handing it to the parser.
 
-looping over each id in the range. This gives a precise per-id outcome:
-- exactly one match → process it;
-- zero matches → emit a `-- MISSING EMAIL for id=<id>` note in `out.sql` and log
-  it in `report.json` (no email exists to recover from);
-- multiple matches → use the most recent and add a `-- WARNING: multiple emails`
-  note.
+The script is **offline and deterministic** — it runs the same way every time with
+no network, no quota, and no auth. Because the source file is fixed on disk, no
+caching layer is needed; re-running is already cheap and repeatable. A standard
+MIME parser (`mailparser`, already transitively common, or a small hand-rolled
+walker) handles step 1–4; choice is an implementation detail.
 
-(Gmail substring subject matching may also surface `#10240` for a `#1024` query;
-the parser re-validates the exact id from each matched subject and discards
-non-exact hits.)
+The subject and body of each inner message are then parsed exactly as before
+(see Data extraction). The id is taken from the subject and **re-validated**
+against the attachment filename's id.
 
-## Email cache
+### Duplicate handling
 
-The utility will be run repeatedly while the parser and SQL logic are refined.
-Fetching from Gmail every run is slow, consumes API quota, and depends on the
-re-authorized token. So the **raw fetched email is cached to disk on the first
-run and read from disk on subsequent runs**.
-
-- **What is cached:** the *raw fetched result* per id — `{ id, gmailMessageId,
-  subject, dateHeader, bodyHtml, fetchedAt, matchCount }` — **not** the parsed
-  fields or generated SQL. Parser/SQL changes therefore never require a re-fetch;
-  only the cache feeds them.
-- **Layout:** one JSON file per id at `cache/<id>.json` (e.g. `cache/1024.json`).
-  Human-inspectable, and doubles as a parser test fixture (see Testing).
-- **Misses are cached too:** if no Sent email matches an id, a file recording
-  `matchCount: 0` is written so the miss is not re-queried on later runs.
-- **Read path:** for each id, if `cache/<id>.json` exists, use it; otherwise hit
-  Gmail and write the cache file. This is the default behavior — the first run
-  populates the cache, every later run is fully offline.
-- **`--refresh` flag:** force a re-fetch from Gmail, overwriting cache files for
-  the targeted range (used if a Sent email is edited or the first fetch was wrong).
-- **Cache dir is git-ignored** (it contains real member PII from email bodies).
+If two attachments yield the **same id** (as #1024 does), both are emitted
+**commented out**, each preceded by `-- WARNING: duplicate id N — two source
+emails (dates: …); operator must choose one`. They are also recorded together in
+`report.json`. The operator picks the correct one, uncomments it, and discards the
+other.
 
 ## Output
 
@@ -101,8 +101,8 @@ run and read from disk on subsequent runs**.
    `-- SKIPPED` comment lines. Wrapped in a transaction header/footer comment for
    the operator's convenience (`-- BEGIN; ... -- COMMIT;` left commented so the
    operator opts in).
-2. **`report.json`** — per-message log: gmail message id, parsed `id`, member name,
-   resolution outcomes, warnings, and skip reasons. For auditing the run.
+2. **`report.json`** — per-attachment log: source filename, parsed `id`, member
+   name, resolution outcomes, warnings, duplicate/skip reasons. For auditing the run.
 
 ## Data extraction (per email)
 
@@ -146,10 +146,11 @@ A row is flagged (commented out) when:
   and `village_id` NULL needing manual fill).
 - `service_name` cannot be parsed from the body.
 - A body detail field is present-but-unparseable.
+- The id is **duplicated** across attachments (see Duplicate handling).
 
 Emit `-- SKIPPED id=N (already exists in service_request)` instead of an `INSERT`
-when the id is already present in the DB. Emit `-- MISSING EMAIL for id=N` when no
-Sent email matches that id (nothing to recover from).
+when the id is already present in the DB. Emit `-- MISSING id=N (no attachment in
+Recovery_emails.eml)` if an expected id has no attachment.
 
 To make the commented-out statements easy to find and fix, each is also written
 to `report.json` with its id and the list of reasons.
@@ -159,79 +160,76 @@ to `report.json` with its id and the list of reasons.
 ```
 src/recreate/
   index.js         # CLI entry: arg parsing, orchestration, writes out.sql + report.json
-  email-source.js  # cache-first fetch: read cache/<id>.json or fall back to gmail-reader, then write cache
-  gmail-reader.js  # readonly-scoped auth; search + get + decode message body/headers
+  eml-source.js    # read Recovery_emails.eml, walk MIME, yield {id, filename, subject, dateHeader, bodyHtml} per attachment
   parser.js        # PURE: subject parser + body field extractors (string in -> fields out)
   resolver.js      # DB lookups: member_person_id, village_id, existing ids
-  sql-writer.js    # build INSERT statements (commenting out flagged rows) + WARNING/SKIPPED/MISSING comments; value escaping
-cache/             # git-ignored; one raw-email JSON per id (cache/<id>.json)
+  sql-writer.js    # build INSERT statements (commenting out flagged/duplicate rows) + WARNING/SKIPPED/MISSING comments; value escaping
 ```
 
-`email-source.js` is the only module `index.js` calls for email data; it owns the
-cache-vs-Gmail decision and the `--refresh` behavior, keeping `gmail-reader.js` a
-pure I/O wrapper.
+`eml-source.js` is the only module `index.js` calls for email data; it owns MIME
+parsing, forwarded-wrapper unwrapping, and quoted-printable decoding, yielding
+clean `{ subject, bodyHtml, ... }` records. No Gmail, no OAuth, no cache.
 
-Reuses existing repo infrastructure: `dotenv`, `googleapis`, `mysql2`, and the
-DB connection pattern from `src/db.js`. The OAuth client construction mirrors
-`src/gmail.js` (`buildAuthClient`) but reads the re-authorized
-`services-mailer-token.json` and uses the `gmail.readonly` capability.
+Reuses existing repo infrastructure: `dotenv`, `mysql2`, and the DB connection
+pattern from `src/db.js`. MIME parsing uses a small library (e.g. `mailparser`)
+or a focused hand-rolled walker — an implementation detail. (`googleapis` is no
+longer needed by this utility.)
 
 `parser.js` has no I/O dependencies, so it is unit-testable in isolation.
 
 ## Data flow
 
 ```
-CLI args (--from, --to, --refresh) ──> existingIds = resolver.existingIds(from..to)
-   for srId in from..to:
-     if srId in existingIds: sql-writer.skipped(srId); report.push(skip); continue
-     email = email-source.get(srId, {refresh})   # cache/<id>.json or Gmail->cache
-        # email-source: search `in:sent subject:"SR Request #${srId}"`, take most
-        # recent, decode; or matchCount:0. Writes cache/<id>.json. Re-validates exact id.
-     if email.matchCount == 0: sql-writer.missing(srId); report.push(missing); continue
-     parsed = parser.parseSubject(email.subject)
+CLI args (--in, --out)
+emails = eml-source.read(inPath)            # [{id, filename, subject, dateHeader, bodyHtml}, ...]
+ids    = emails.map(id); dups = ids with count > 1
+existingIds = resolver.existingIds(distinct ids)
+   for email in emails (sorted by id, filename):
+     if email.id in existingIds: sql-writer.skipped(email.id); report.push(skip); continue
+     warnings = []
+     if email.id in dups: warnings.push("duplicate id")
+     parsed = parser.parseSubject(email.subject)   # re-validate id == filename id
      parser.parseBody(email.bodyHtml) ──> { service_name, description, destination, ... }
      resolver.resolveMember(parsed.member_name) ──> { member_person_id, village_id, warning? }
-     sql-writer.insert(row, warnings) ──> appended to out.sql
+     sql-writer.insert(row, warnings)   # commented out if warnings non-empty
      report.push(...)
 write out.sql, report.json
 ```
 
 ## Error handling
 
-- **Gmail auth failure (scope):** fail fast with a clear message pointing to the
-  re-auth step. (This is the first thing the script verifies.)
-- **DB unreachable:** fail fast before processing any messages.
-- **Per-message parse error:** caught, logged to `report.json`, emitted as a
-  `-- WARNING` with the raw subject so nothing is lost; processing continues.
-- **No live writes**, so there is no partial-write or rollback concern.
+- **Input file missing/unreadable:** fail fast with a clear message naming the path.
+- **DB unreachable:** fail fast before processing any attachments.
+- **Per-attachment parse error:** caught, logged to `report.json`, emitted as a
+  `-- WARNING` with the raw filename/subject so nothing is lost; processing
+  continues with the remaining attachments.
+- **No live writes / no network**, so there is no partial-write, rollback, or auth
+  concern.
 
 ## Testing
 
-- **TDD on `parser.js`** (pure): fixtures are the cached `cache/<id>.json` files
-  captured from real Sent emails — covering each recoverable service type (Rides,
-  Errands, Home Help, Tech Support), all `SR Request`. Because the cache stores
-  raw subject + body, the same files that drive a run also serve as test inputs.
-  Assert extracted `id`, `member_name`, `service_date`, `service_name`,
-  `description`, and destination/time fields. Include a malformed-subject fixture
-  and a missing-body-field fixture to exercise the NULL/WARNING paths. (Fixtures
-  used by committed tests are copied under the test dir, scrubbed of PII, so the
-  live `cache/` can stay git-ignored.)
-- **`email-source.js`**: assert cache-hit reads from disk without calling Gmail,
-  cache-miss writes the file, `matchCount:0` is persisted, and `--refresh`
-  overwrites.
+- **TDD on `parser.js`** (pure): fixtures are the subject + decoded body HTML of
+  attachments extracted from `Recovery_emails.eml` — covering each recoverable
+  service type (Rides, Errands, Home Help, Tech Support), all `SR Request`. Assert
+  extracted `id`, `member_name`, `service_date`, `service_name`, `description`, and
+  destination/time fields. Include a malformed-subject fixture and a
+  missing-body-field fixture to exercise the NULL/WARNING paths. (Fixtures used by
+  committed tests are scrubbed of PII; the real `Recovery_emails.eml` is
+  git-ignored.)
+- **`eml-source.js`**: assert it extracts all attachments from a small sample
+  `.eml`, unwraps a forwarded `Re:` wrapper to the inner original, decodes
+  quoted-printable bodies, and reports duplicate ids.
 - **`sql-writer.js`**: assert value escaping (quotes, NULLs, dates); that clean
-  rows render as runnable `INSERT`s; that flagged rows render with `-- WARNING`
-  lines **and every line of the `INSERT` commented out**; and that
+  rows render as runnable `INSERT`s; that flagged/duplicate rows render with
+  `-- WARNING` lines **and every line of the `INSERT` commented out**; and that
   skips/missing render as comments.
-- **`resolver.js` / `gmail-reader.js`:** thin I/O wrappers, verified during a live
-  dry run against the real mailbox + DB (read-only), checking the generated SQL
-  before any manual execution.
+- **`resolver.js`:** thin DB wrapper, verified during a dry run against the real DB
+  (read-only), checking the generated SQL before any manual execution.
 
 ## Operator runbook (post-implementation)
 
-1. Re-run `../oauth-dance/get-refresh-token.js` (now requesting
-   `gmail.send`+`gmail.readonly`); overwrite `services-mailer-token.json`.
-2. `node src/recreate/index.js --from=1024 --to=1040 --out out.sql`
-3. Review `out.sql` and `report.json`; resolve any `-- WARNING` / `-- MISSING`
-   rows (especially missing `village_id`, and any id with no Sent email).
+1. Ensure `./Recovery_emails.eml` is present (default input path).
+2. `node src/recreate/index.js --in ./Recovery_emails.eml --out out.sql`
+3. Review `out.sql` and `report.json`; resolve any `-- WARNING` rows — especially
+   the **duplicate #1024** (pick one date) and any unresolved `village_id`.
 4. Run the reviewed SQL manually against `vg`.
