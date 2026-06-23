@@ -8,13 +8,14 @@
 
 A set of `service_request` rows were accidentally deleted from the Village Green
 (`vg`) database. The corresponding "open request" emails sent to volunteers have
-been collected into a single local file, **`./Recovery_emails.eml`** — an outer
-email whose attachments are the original request emails (one `message/rfc822`
-attachment per request). Each attached email's subject line and HTML body contain
-enough information to reconstruct the deleted rows. This utility reads that local
-`.eml` file, parses the attached emails, and emits **reviewable SQL** (`INSERT`
-statements) that an operator runs manually to restore the rows with their
-**original IDs**.
+been collected into a single local file, **`./Recovery_2.eml`** — an outer email
+whose attachments are the **original** request emails (one `message/rfc822`
+attachment per request, each a clean original send from
+`services@villagecommonri.org`, no reply/forward wrappers). Each attached email's
+subject line and HTML body contain enough information to reconstruct the deleted
+rows. This utility reads that local `.eml` file, parses the attached emails, and
+emits **reviewable SQL** (`INSERT` statements) that an operator runs manually to
+restore the rows with their **original IDs**.
 
 This is a one-off script. It reads a local file only — **no Gmail/network access
 and no OAuth** are required. It does **not** write to the database. It produces SQL
@@ -22,14 +23,12 @@ and a JSON report for human review.
 
 ## Scope
 
-**In scope:** The open service requests attached to `./Recovery_emails.eml` —
-IDs **#1024 through #1040** (17 requests), all with subject prefix `SR Request`.
-Verified 2026-06-23: all 17 IDs are present as attachments and all 17 are absent
-from `service_request`, so all 17 are to be recovered (none are survivors to skip).
-
-**Note — duplicate:** ID **#1024 appears twice** in the file, with two different
-service dates (6/24/2026 and 6/26/2026). The **6/24/2026 one is the keeper**; the
-6/26/2026 one is discarded. See Duplicate handling.
+**In scope:** The open service requests attached to `./Recovery_2.eml` — IDs
+**#1024 through #1040** (17 requests), all with subject prefix `SR Request`.
+Verified 2026-06-23 against `Recovery_2.eml`: all 17 IDs are present as clean
+original-send attachments, each appearing **exactly once** (no duplicates), and
+all 17 are absent from `service_request` — so all 17 are to be recovered (none are
+survivors to skip).
 
 **Out of scope (explicitly):**
 - Confirmed requests (`SR Conf`). There are none to recover. No confirmed-email
@@ -41,14 +40,15 @@ service dates (6/24/2026 and 6/26/2026). The **6/24/2026 one is the keeper**; th
 
 ## Key facts established during design
 
-1. **Source is the local `./Recovery_emails.eml`.** It is a `multipart/mixed`
-   email; each request is a `message/rfc822` attachment named e.g.
-   `SR Request #1040-For Masullo, Linda-Service Date: 7/1/2026.eml`. Some
-   attachments are forwarded replies (`Re: SR Request #…` wrapping the original);
-   the parser uses the **inner-most original message** for the subject and body.
-   Bodies are quoted-printable encoded (soft `=\n` line breaks) and must be decoded
-   before parsing. **No Gmail read access / OAuth is needed** (this supersedes the
-   earlier plan to re-authorize the token with `gmail.readonly`).
+1. **Source is the local `./Recovery_2.eml`.** It is a `multipart/mixed` email;
+   each request is a flat `message/rfc822` attachment named e.g.
+   `SR Request #1040-For Masullo, Linda-Service Date: 7/1/2026.eml`, containing a
+   single `text/html` body. All 17 attachments are **clean original sends** from
+   `services@villagecommonri.org` — no `Re:`/forward wrappers, no nesting beyond
+   `message/rfc822 → text/html` (verified against `Recovery_2.eml`). Bodies are
+   quoted-printable encoded (soft `=\n` line breaks) and must be decoded before
+   parsing. **No Gmail read access / OAuth is needed** (this supersedes the earlier
+   plan to re-authorize the token with `gmail.readonly`).
 2. **`village_id` is `NOT NULL`** on `service_request`. Every other recoverable
    column is nullable. `village_id` must be resolved (from the member's
    `person.village_id`) or the row flagged for manual fill.
@@ -60,47 +60,36 @@ service dates (6/24/2026 and 6/26/2026). The **6/24/2026 one is the keeper**; th
    `-- SKIPPED` note rather than an `INSERT`. For this run none of 1024–1040 will
    trigger it, but it protects against re-runs and accidental overlap.
 5. **All recovered rows have `status = 'Open'`** and `volunteer_person_id = NULL`.
-6. **#1024 is duplicated** in the source (two service dates). See Duplicate
-   handling.
+6. **No duplicates.** Each id appears once in `Recovery_2.eml`.
 
-## Source: parsing `Recovery_emails.eml`
+## Source: parsing `Recovery_2.eml`
 
 The script reads the single local file (path via `--in`, default
-`./Recovery_emails.eml`) and walks its MIME tree:
+`./Recovery_2.eml`) and walks its MIME tree:
 
 1. Parse the outer `multipart/mixed` message.
 2. Collect every `message/rfc822` attachment.
-3. For each attachment, descend to the **inner-most `message/rfc822`** (unwrapping
-   any forwarded `Re:` wrapper) to get the original request's `Subject`, `Date`
-   header, and `text/html` body.
+3. For each attachment, read the original request's `Subject`, `Date` header, and
+   `text/html` body. (Attachments are flat `message/rfc822 → text/html` originals;
+   no forward/reply unwrapping is needed.)
 4. Decode the body (quoted-printable) before handing it to the parser.
 
 The script is **offline and deterministic** — it runs the same way every time with
 no network, no quota, and no auth. Because the source file is fixed on disk, no
 caching layer is needed; re-running is already cheap and repeatable. A standard
-MIME parser (`mailparser`, already transitively common, or a small hand-rolled
-walker) handles step 1–4; choice is an implementation detail.
+MIME parser (`mailparser`) or a small hand-rolled walker handles steps 1–4; choice
+is an implementation detail.
 
-The subject and body of each inner message are then parsed exactly as before
-(see Data extraction). The id is taken from the subject and **re-validated**
-against the attachment filename's id.
+The subject and body of each message are then parsed (see Data extraction). The id
+is taken from the subject and **re-validated** against the attachment filename's id.
 
-### Duplicate handling
+### Duplicate handling (safety guard)
 
-When two attachments yield the **same id**, the script keeps the one with the
-**earlier service date** and discards the rest:
-
-- The **kept** attachment (earliest `Service Date`) is emitted as a normal row
-  (runnable if it has no other warnings), preceded by a note
-  `-- NOTE: duplicate id N — kept service date M/D/YYYY (earliest), discarded: …`.
-- Each **discarded** attachment is emitted **commented out** with
-  `-- DISCARDED duplicate id N — service date M/D/YYYY (later)`.
-- Both are recorded in `report.json` with the keep/discard decision.
-
-For **#1024** this keeps the **6/24/2026** request and discards the 6/26/2026 one,
-per the operator's decision. (If two duplicates ever shared the same service date,
-the script falls back to flagging both commented-out for manual choice rather than
-guessing.)
+`Recovery_2.eml` contains no duplicate ids, so this is only a guard against a bad
+input file. If two attachments ever yield the **same id**, the script emits **all**
+of them **commented out**, each preceded by `-- WARNING: duplicate id N — N source
+emails; operator must choose one`, and records them together in `report.json`. It
+does **not** silently pick one.
 
 ## Output
 
@@ -154,12 +143,11 @@ A row is flagged (commented out) when:
   and `village_id` NULL needing manual fill).
 - `service_name` cannot be parsed from the body.
 - A body detail field is present-but-unparseable.
-- It is a **discarded duplicate** (see Duplicate handling). The kept duplicate is
-  not flagged on account of the duplication.
+- The id is **duplicated** across attachments (safety guard; see Duplicate
+  handling) — all copies flagged.
 
 Emit `-- SKIPPED id=N (already exists in service_request)` instead of an `INSERT`
-when the id is already present in the DB. Emit `-- MISSING id=N (no attachment in
-Recovery_emails.eml)` if an expected id has no attachment.
+when the id is already present in the DB.
 
 To make the commented-out statements easy to find and fix, each is also written
 to `report.json` with its id and the list of reasons.
@@ -169,15 +157,15 @@ to `report.json` with its id and the list of reasons.
 ```
 src/recreate/
   index.js         # CLI entry: arg parsing, orchestration, writes out.sql + report.json
-  eml-source.js    # read Recovery_emails.eml, walk MIME, yield {id, filename, subject, dateHeader, bodyHtml} per attachment
+  eml-source.js    # read Recovery_2.eml, walk MIME, yield {id, filename, subject, dateHeader, bodyHtml} per attachment
   parser.js        # PURE: subject parser + body field extractors (string in -> fields out)
   resolver.js      # DB lookups: member_person_id, village_id, existing ids
-  sql-writer.js    # build INSERT statements (commenting out flagged/duplicate rows) + WARNING/SKIPPED/MISSING comments; value escaping
+  sql-writer.js    # build INSERT statements (commenting out flagged rows) + WARNING/SKIPPED comments; value escaping
 ```
 
 `eml-source.js` is the only module `index.js` calls for email data; it owns MIME
-parsing, forwarded-wrapper unwrapping, and quoted-printable decoding, yielding
-clean `{ subject, bodyHtml, ... }` records. No Gmail, no OAuth, no cache.
+parsing and quoted-printable decoding, yielding clean `{ subject, bodyHtml, ... }`
+records. No Gmail, no OAuth, no cache.
 
 Reuses existing repo infrastructure: `dotenv`, `mysql2`, and the DB connection
 pattern from `src/db.js`. MIME parsing uses a small library (e.g. `mailparser`)
@@ -191,12 +179,11 @@ longer needed by this utility.)
 ```
 CLI args (--in, --out)
 emails = eml-source.read(inPath)            # [{id, filename, subject, dateHeader, bodyHtml}, ...]
-emails = resolveDuplicates(emails)          # per id: keep earliest service date, mark rest discarded
+dupIds = ids appearing more than once       # safety guard (expected: none)
 existingIds = resolver.existingIds(distinct ids)
    for email in emails (sorted by id, filename):
      if email.id in existingIds: sql-writer.skipped(email.id); report.push(skip); continue
-     if email.discarded: sql-writer.discarded(email); report.push(discard); continue
-     warnings = email.dupNote ? [note] : []
+     warnings = email.id in dupIds ? ["duplicate id"] : []
      parsed = parser.parseSubject(email.subject)   # re-validate id == filename id
      parser.parseBody(email.bodyHtml) ──> { service_name, description, destination, ... }
      resolver.resolveMember(parsed.member_name) ──> { member_person_id, village_id, warning? }
@@ -218,18 +205,14 @@ write out.sql, report.json
 ## Testing
 
 - **TDD on `parser.js`** (pure): fixtures are the subject + decoded body HTML of
-  attachments extracted from `Recovery_emails.eml` — covering each recoverable
-  service type (Rides, Errands, Home Help, Tech Support), all `SR Request`. Assert
+  attachments extracted from `Recovery_2.eml` — covering each recoverable service
+  type (Rides, Errands, Home Help, Tech Support), all `SR Request`. Assert
   extracted `id`, `member_name`, `service_date`, `service_name`, `description`, and
   destination/time fields. Include a malformed-subject fixture and a
   missing-body-field fixture to exercise the NULL/WARNING paths. (Fixtures used by
-  committed tests are scrubbed of PII; the real `Recovery_emails.eml` is
-  git-ignored.)
+  committed tests are scrubbed of PII; the real `Recovery_2.eml` is git-ignored.)
 - **`eml-source.js`**: assert it extracts all attachments from a small sample
-  `.eml`, unwraps a forwarded `Re:` wrapper to the inner original, decodes
-  quoted-printable bodies, and on duplicate ids keeps the earliest service date
-  while marking the rest discarded (with same-date duplicates left for manual
-  choice).
+  `.eml`, decodes quoted-printable bodies, and flags duplicate ids (safety guard).
 - **`sql-writer.js`**: assert value escaping (quotes, NULLs, dates); that clean
   rows render as runnable `INSERT`s; that flagged/duplicate rows render with
   `-- WARNING` lines **and every line of the `INSERT` commented out**; and that
@@ -239,9 +222,8 @@ write out.sql, report.json
 
 ## Operator runbook (post-implementation)
 
-1. Ensure `./Recovery_emails.eml` is present (default input path).
-2. `node src/recreate/index.js --in ./Recovery_emails.eml --out out.sql`
+1. Ensure `./Recovery_2.eml` is present (default input path).
+2. `node src/recreate/index.js --in ./Recovery_2.eml --out out.sql`
 3. Review `out.sql` and `report.json`; resolve any `-- WARNING` rows (e.g.
-   unresolved `village_id`). The **duplicate #1024 is auto-resolved** (6/24/2026
-   kept, 6/26/2026 emitted as `-- DISCARDED`); just confirm it looks right.
+   unresolved `village_id`). Expect 17 clean `INSERT`s and no duplicates.
 4. Run the reviewed SQL manually against `vg`.

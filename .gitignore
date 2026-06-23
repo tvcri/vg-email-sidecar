@@ -36,5 +36,6 @@ services-mailer-token.json
 
 # Service-request recovery utility (contains member PII)
 Recovery_emails.eml
+Recovery_2.eml
 out.sql
 report.json
