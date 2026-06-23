@@ -19,7 +19,10 @@ and a JSON report for human review.
 
 ## Scope
 
-**In scope:** Open service requests only — emails with subject prefix `SR Request`.
+**In scope:** A specific, known range of open service requests — IDs **#1024
+through #1040** (17 requests), all with subject prefix `SR Request`. Verified
+2026-06-23: all 17 IDs are absent from `service_request`, so all 17 are to be
+recovered (none are survivors to skip).
 
 **Out of scope (explicitly):**
 - Confirmed requests (`SR Conf`). There are none to recover. No confirmed-email
@@ -41,23 +44,33 @@ and a JSON report for human review.
    `person.village_id`) or the row flagged for manual fill.
 3. **`id` is `auto_increment` but we force the original value.** Explicit `id` in
    the `INSERT` preserves the IDs that other tables (e.g. `email_event`) reference.
-4. **673 `service_request` rows still exist.** Deleted IDs are gaps. The script
-   queries existing IDs and **skips any email whose id already exists**, emitting a
-   `-- SKIPPED` note rather than an `INSERT`, so survivors are never overwritten
-   and no duplicate-key errors occur.
+4. **673 `service_request` rows still exist; the target range #1024–#1040 is
+   entirely missing** (verified 2026-06-23). As a safety net the script still
+   queries existing IDs and **skips any id that already exists**, emitting a
+   `-- SKIPPED` note rather than an `INSERT`. For this run none of 1024–1040 will
+   trigger it, but it protects against re-runs and accidental overlap.
 5. **All recovered rows have `status = 'Open'`** and `volunteer_person_id = NULL`.
 
 ## Source selection
 
-Gmail search query (read-only):
+We recover an explicit ID range, **#1024–#1040** (configurable via CLI:
+`--from=1024 --to=1040`). Gmail cannot search a numeric range directly, so the
+script issues **one read-only search per id**:
 
 ```
-in:sent subject:"SR Request"
+in:sent subject:"SR Request #<id>"
 ```
 
-Optional CLI date bounds appended to the query: `--after=YYYY/MM/DD`,
-`--before=YYYY/MM/DD` (Gmail's date syntax). All matching messages are paginated
-through and processed.
+looping over each id in the range. This gives a precise per-id outcome:
+- exactly one match → process it;
+- zero matches → emit a `-- MISSING EMAIL for id=<id>` note in `out.sql` and log
+  it in `report.json` (no email exists to recover from);
+- multiple matches → use the most recent and add a `-- WARNING: multiple emails`
+  note.
+
+(Gmail substring subject matching may also surface `#10240` for a `#1024` query;
+the parser re-validates the exact id from each matched subject and discards
+non-exact hits.)
 
 ## Output
 
@@ -103,7 +116,8 @@ Always emit an `INSERT` (never halt, never silently drop), and prepend
 - A body detail field is present-but-unparseable.
 
 Emit `-- SKIPPED id=N (already exists in service_request)` instead of an `INSERT`
-when the id is already present in the DB.
+when the id is already present in the DB. Emit `-- MISSING EMAIL for id=N` when no
+Sent email matches that id (nothing to recover from).
 
 ## Module structure
 
@@ -126,13 +140,15 @@ DB connection pattern from `src/db.js`. The OAuth client construction mirrors
 ## Data flow
 
 ```
-CLI args ──> gmail-reader.list(query) ──> [messageIds]
-   for each id:
-     gmail-reader.get(id) ──> { subject, dateHeader, bodyHtml }
-     parser.parseSubject(subject) ──> { id, member_name, service_date }
-     if id in existingIds: sql-writer.skipped(id); continue
+CLI args (--from, --to) ──> existingIds = resolver.existingIds(from..to)
+   for srId in from..to:
+     if srId in existingIds: sql-writer.skipped(srId); report.push(skip); continue
+     msgs = gmail-reader.search(`in:sent subject:"SR Request #${srId}"`)
+     if msgs empty: sql-writer.missing(srId); report.push(missing); continue
+     msg = most-recent(msgs); gmail-reader.get(msg.id) ──> { subject, dateHeader, bodyHtml }
+     parsed = parser.parseSubject(subject)   # re-validate exact id == srId
      parser.parseBody(bodyHtml) ──> { service_name, description, destination, ... }
-     resolver.resolveMember(member_name) ──> { member_person_id, village_id, warning? }
+     resolver.resolveMember(parsed.member_name) ──> { member_person_id, village_id, warning? }
      sql-writer.insert(row, warnings) ──> appended to out.sql
      report.push(...)
 write out.sql, report.json
@@ -164,7 +180,7 @@ write out.sql, report.json
 
 1. Re-run `../oauth-dance/get-refresh-token.js` (now requesting
    `gmail.send`+`gmail.readonly`); overwrite `services-mailer-token.json`.
-2. `node src/recreate/index.js --after=YYYY/MM/DD --before=YYYY/MM/DD --out out.sql`
-3. Review `out.sql` and `report.json`; resolve any `-- WARNING` rows (especially
-   missing `village_id`).
+2. `node src/recreate/index.js --from=1024 --to=1040 --out out.sql`
+3. Review `out.sql` and `report.json`; resolve any `-- WARNING` / `-- MISSING`
+   rows (especially missing `village_id`, and any id with no Sent email).
 4. Run the reviewed SQL manually against `vg`.
