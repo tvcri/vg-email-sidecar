@@ -124,3 +124,25 @@ To extend:
 - Add new service type mappings to `SERVICE_TYPE_TO_CAPABILITY` in `src/email-processor.js`
 - Modify email templates by editing `buildNewRequestTemplate()` and `buildPatchRequestTemplate()` functions
 - Adjust poll interval via `POLL_INTERVAL_MS` environment variable
+
+## Service Request Time-Correction Emails (one-off)
+
+Re-sends each `Ride:` service request (`id <= 2003`) as a **CORRECTED** open-request
+email to the same volunteers who originally received it. The original emails showed
+ride times 4 hours ahead of what the Member requested (an old UTC-rendering bug,
+since fixed in `templates.js`); this re-renders the corrected DB rows through the
+current Eastern-time template and prepends a red-framed correction notice.
+
+```bash
+# 1. Dry run — list target SRs and resolved recipients, send nothing:
+node src/send-corrections.js --dry-run
+
+# 2. Test pass — set TEST_RECIPIENTS in .env, then send to yourself:
+node src/send-corrections.js
+
+# 3. Live — unset TEST_RECIPIENTS, then send to real volunteers:
+node src/send-corrections.js
+```
+
+Read-only against the DB (no writes, no `email_event` rows). Each SR with no
+matching `Rides` volunteers is skipped with a warning.
