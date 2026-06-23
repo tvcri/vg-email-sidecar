@@ -82,28 +82,28 @@ async function resolveRecipients(requestData) {
   };
 }
 
-// The opening tag of the first content cell in buildRidesOpenRequestTemplate's
-// output. Unique within one rendered ride email. We insert our row right before it.
-const CONTENT_CELL_OPEN =
-  "<td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>";
+// The opening <tr> of the first content row in buildRidesOpenRequestTemplate's
+// output (the row whose cell starts with "Hello,"). Unique within one rendered
+// ride email. We insert our notice row as a sibling immediately before it, so the
+// markup stays valid (no stray/empty <tr>).
+const CONTENT_ROW_OPEN =
+  "<tr>\n                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>";
 
 const CORRECTION_NOTICE_ROW = `<tr>
-  <td>
-    <div style='margin:20px 15px; padding:12px; background-color:#fdecea; border:1px solid #f5c2c0; border-radius:4px; font-weight:bold; color:#611a15;'>
-      This Service Request was previously sent with INCORRECT TIMES. The original email showed times 4 hours ahead of what the Member requested. The content below has been corrected. We apologize for this error as we migrate our service request pipeline.
-    </div>
-  </td>
-</tr>
-                <tr>
-                  `;
+                  <td>
+                    <div style='margin:20px 15px; padding:12px; background-color:#fdecea; border:1px solid #f5c2c0; border-radius:4px; font-weight:bold; color:#611a15;'>
+                      This Service Request was previously sent with INCORRECT TIMES. The original email showed times 4 hours ahead of what the Member requested. The content below has been corrected. We apologize for this error as we migrate our service request pipeline.
+                    </div>
+                  </td>
+                </tr>
+                `;
 
 function injectCorrectionNotice(html) {
-  if (!html.includes(CONTENT_CELL_OPEN)) {
+  if (!html.includes(CONTENT_ROW_OPEN)) {
     throw new Error('correction-notice anchor not found in rendered template');
   }
-  // Replace only the first occurrence (the content row), closing our notice row
-  // and re-opening the content <tr> + <td>.
-  return html.replace(CONTENT_CELL_OPEN, CORRECTION_NOTICE_ROW + CONTENT_CELL_OPEN);
+  // Insert the notice row as a sibling <tr> immediately before the content row.
+  return html.replace(CONTENT_ROW_OPEN, CORRECTION_NOTICE_ROW + CONTENT_ROW_OPEN);
 }
 
 function injectTestBanner(html, intendedVolunteers) {
