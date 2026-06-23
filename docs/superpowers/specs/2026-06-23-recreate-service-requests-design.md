@@ -72,6 +72,28 @@ looping over each id in the range. This gives a precise per-id outcome:
 the parser re-validates the exact id from each matched subject and discards
 non-exact hits.)
 
+## Email cache
+
+The utility will be run repeatedly while the parser and SQL logic are refined.
+Fetching from Gmail every run is slow, consumes API quota, and depends on the
+re-authorized token. So the **raw fetched email is cached to disk on the first
+run and read from disk on subsequent runs**.
+
+- **What is cached:** the *raw fetched result* per id — `{ id, gmailMessageId,
+  subject, dateHeader, bodyHtml, fetchedAt, matchCount }` — **not** the parsed
+  fields or generated SQL. Parser/SQL changes therefore never require a re-fetch;
+  only the cache feeds them.
+- **Layout:** one JSON file per id at `cache/<id>.json` (e.g. `cache/1024.json`).
+  Human-inspectable, and doubles as a parser test fixture (see Testing).
+- **Misses are cached too:** if no Sent email matches an id, a file recording
+  `matchCount: 0` is written so the miss is not re-queried on later runs.
+- **Read path:** for each id, if `cache/<id>.json` exists, use it; otherwise hit
+  Gmail and write the cache file. This is the default behavior — the first run
+  populates the cache, every later run is fully offline.
+- **`--refresh` flag:** force a re-fetch from Gmail, overwriting cache files for
+  the targeted range (used if a Sent email is edited or the first fetch was wrong).
+- **Cache dir is git-ignored** (it contains real member PII from email bodies).
+
 ## Output
 
 1. **`out.sql`** (path configurable / stdout) — one `INSERT INTO service_request`
@@ -137,11 +159,17 @@ to `report.json` with its id and the list of reasons.
 ```
 src/recreate/
   index.js         # CLI entry: arg parsing, orchestration, writes out.sql + report.json
-  gmail-reader.js  # readonly-scoped auth; list + get + decode message body/headers
+  email-source.js  # cache-first fetch: read cache/<id>.json or fall back to gmail-reader, then write cache
+  gmail-reader.js  # readonly-scoped auth; search + get + decode message body/headers
   parser.js        # PURE: subject parser + body field extractors (string in -> fields out)
   resolver.js      # DB lookups: member_person_id, village_id, existing ids
   sql-writer.js    # build INSERT statements (commenting out flagged rows) + WARNING/SKIPPED/MISSING comments; value escaping
+cache/             # git-ignored; one raw-email JSON per id (cache/<id>.json)
 ```
+
+`email-source.js` is the only module `index.js` calls for email data; it owns the
+cache-vs-Gmail decision and the `--refresh` behavior, keeping `gmail-reader.js` a
+pure I/O wrapper.
 
 Reuses existing repo infrastructure: `dotenv`, `googleapis`, `mysql2`, and the
 DB connection pattern from `src/db.js`. The OAuth client construction mirrors
@@ -153,14 +181,15 @@ DB connection pattern from `src/db.js`. The OAuth client construction mirrors
 ## Data flow
 
 ```
-CLI args (--from, --to) ──> existingIds = resolver.existingIds(from..to)
+CLI args (--from, --to, --refresh) ──> existingIds = resolver.existingIds(from..to)
    for srId in from..to:
      if srId in existingIds: sql-writer.skipped(srId); report.push(skip); continue
-     msgs = gmail-reader.search(`in:sent subject:"SR Request #${srId}"`)
-     if msgs empty: sql-writer.missing(srId); report.push(missing); continue
-     msg = most-recent(msgs); gmail-reader.get(msg.id) ──> { subject, dateHeader, bodyHtml }
-     parsed = parser.parseSubject(subject)   # re-validate exact id == srId
-     parser.parseBody(bodyHtml) ──> { service_name, description, destination, ... }
+     email = email-source.get(srId, {refresh})   # cache/<id>.json or Gmail->cache
+        # email-source: search `in:sent subject:"SR Request #${srId}"`, take most
+        # recent, decode; or matchCount:0. Writes cache/<id>.json. Re-validates exact id.
+     if email.matchCount == 0: sql-writer.missing(srId); report.push(missing); continue
+     parsed = parser.parseSubject(email.subject)
+     parser.parseBody(email.bodyHtml) ──> { service_name, description, destination, ... }
      resolver.resolveMember(parsed.member_name) ──> { member_person_id, village_id, warning? }
      sql-writer.insert(row, warnings) ──> appended to out.sql
      report.push(...)
@@ -178,11 +207,18 @@ write out.sql, report.json
 
 ## Testing
 
-- **TDD on `parser.js`** (pure): fixtures captured from real Sent emails — one per
-  recoverable service type (Rides, Errands, Home Help, Tech Support), all `SR
-  Request`. Assert extracted `id`, `member_name`, `service_date`, `service_name`,
+- **TDD on `parser.js`** (pure): fixtures are the cached `cache/<id>.json` files
+  captured from real Sent emails — covering each recoverable service type (Rides,
+  Errands, Home Help, Tech Support), all `SR Request`. Because the cache stores
+  raw subject + body, the same files that drive a run also serve as test inputs.
+  Assert extracted `id`, `member_name`, `service_date`, `service_name`,
   `description`, and destination/time fields. Include a malformed-subject fixture
-  and a missing-body-field fixture to exercise the NULL/WARNING paths.
+  and a missing-body-field fixture to exercise the NULL/WARNING paths. (Fixtures
+  used by committed tests are copied under the test dir, scrubbed of PII, so the
+  live `cache/` can stay git-ignored.)
+- **`email-source.js`**: assert cache-hit reads from disk without calling Gmail,
+  cache-miss writes the file, `matchCount:0` is persisted, and `--refresh`
+  overwrites.
 - **`sql-writer.js`**: assert value escaping (quotes, NULLs, dates); that clean
   rows render as runnable `INSERT`s; that flagged rows render with `-- WARNING`
   lines **and every line of the `INSERT` commented out**; and that

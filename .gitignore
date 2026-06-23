@@ -33,3 +33,8 @@ dist/
 build/
 
 services-mailer-token.json
+
+# Service-request recovery utility (contains member PII)
+cache/
+out.sql
+report.json
