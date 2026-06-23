@@ -95,7 +95,7 @@ function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
                       </table>
                     </div>
                     <br>
-                    ${service_notes ? `Special instructions/info: ${service_notes}<br><br>` : ''}
+                    Special instructions/info: ${service_notes || ''}<br><br>
                     Please let us know if you can help with this request by replying to this email.<br>
                     <br>
                     Thanks for all you do.<br>
@@ -330,7 +330,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                         </tbody>
                       </table>
                     </div>
-                    ${service_notes ? `<br>Members Special Instructions: ${service_notes}<br>` : ''}
+                    <br>Members Special Instructions: ${service_notes || ''}<br>
                     <br>
                     Please let us know if you can help with this ${service_name} request by replying to this email.<br>
                     <br>
@@ -598,7 +598,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
                         </tbody>
                       </table>
                     </div>
-                    ${service_notes ? `<br>Members Special Instructions: ${service_notes}<br>` : ''}
+                    <br>Members Special Instructions: ${service_notes || ''}<br>
                     <br>
                     Please let us know if you can help with this ${service_name} request by replying to this email.<br>
                     <br>
@@ -814,7 +814,7 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
                     <br>
                     NOTE: The date and time for this service request are flexible, to be arranged with the member. Please ignore the date in the subject line of this email. It is only for our current records and will be updated once a service date is set.<br>
                     <br>
-                    ${service_notes ? `Special instructions/info: ${service_notes}<br><br>` : ''}
+                    Special instructions/info: ${service_notes || ''}<br><br>
                     Please let us know if you can help with this request by replying to this email.<br>
                     <br>
                     Thanks for all you do.<br>
