@@ -254,7 +254,9 @@ async function pollOnce() {
 
         if (result.success) {
           console.log(`[${new Date().toISOString()}] Email sent: ${subject}`);
-          await markEmailEventSent(event.id);
+          if (!recipients.isTestMode) {
+            await markEmailEventSent(event.id);
+          }
           sent++;
         } else {
           console.error(`[${new Date().toISOString()}] Failed to send email: ${result.error}`);
