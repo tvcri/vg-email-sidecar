@@ -28,9 +28,8 @@ Verified 2026-06-23: all 17 IDs are present as attachments and all 17 are absent
 from `service_request`, so all 17 are to be recovered (none are survivors to skip).
 
 **Note — duplicate:** ID **#1024 appears twice** in the file, with two different
-service dates (6/24/2026 and 6/26/2026). The script must detect duplicate ids and
-flag them (emit both, commented out, with a `-- WARNING: duplicate id` so the
-operator picks the correct one). See Duplicate handling.
+service dates (6/24/2026 and 6/26/2026). The **6/24/2026 one is the keeper**; the
+6/26/2026 one is discarded. See Duplicate handling.
 
 **Out of scope (explicitly):**
 - Confirmed requests (`SR Conf`). There are none to recover. No confirmed-email
@@ -88,11 +87,20 @@ against the attachment filename's id.
 
 ### Duplicate handling
 
-If two attachments yield the **same id** (as #1024 does), both are emitted
-**commented out**, each preceded by `-- WARNING: duplicate id N — two source
-emails (dates: …); operator must choose one`. They are also recorded together in
-`report.json`. The operator picks the correct one, uncomments it, and discards the
-other.
+When two attachments yield the **same id**, the script keeps the one with the
+**earlier service date** and discards the rest:
+
+- The **kept** attachment (earliest `Service Date`) is emitted as a normal row
+  (runnable if it has no other warnings), preceded by a note
+  `-- NOTE: duplicate id N — kept service date M/D/YYYY (earliest), discarded: …`.
+- Each **discarded** attachment is emitted **commented out** with
+  `-- DISCARDED duplicate id N — service date M/D/YYYY (later)`.
+- Both are recorded in `report.json` with the keep/discard decision.
+
+For **#1024** this keeps the **6/24/2026** request and discards the 6/26/2026 one,
+per the operator's decision. (If two duplicates ever shared the same service date,
+the script falls back to flagging both commented-out for manual choice rather than
+guessing.)
 
 ## Output
 
@@ -146,7 +154,8 @@ A row is flagged (commented out) when:
   and `village_id` NULL needing manual fill).
 - `service_name` cannot be parsed from the body.
 - A body detail field is present-but-unparseable.
-- The id is **duplicated** across attachments (see Duplicate handling).
+- It is a **discarded duplicate** (see Duplicate handling). The kept duplicate is
+  not flagged on account of the duplication.
 
 Emit `-- SKIPPED id=N (already exists in service_request)` instead of an `INSERT`
 when the id is already present in the DB. Emit `-- MISSING id=N (no attachment in
@@ -182,12 +191,12 @@ longer needed by this utility.)
 ```
 CLI args (--in, --out)
 emails = eml-source.read(inPath)            # [{id, filename, subject, dateHeader, bodyHtml}, ...]
-ids    = emails.map(id); dups = ids with count > 1
+emails = resolveDuplicates(emails)          # per id: keep earliest service date, mark rest discarded
 existingIds = resolver.existingIds(distinct ids)
    for email in emails (sorted by id, filename):
      if email.id in existingIds: sql-writer.skipped(email.id); report.push(skip); continue
-     warnings = []
-     if email.id in dups: warnings.push("duplicate id")
+     if email.discarded: sql-writer.discarded(email); report.push(discard); continue
+     warnings = email.dupNote ? [note] : []
      parsed = parser.parseSubject(email.subject)   # re-validate id == filename id
      parser.parseBody(email.bodyHtml) ──> { service_name, description, destination, ... }
      resolver.resolveMember(parsed.member_name) ──> { member_person_id, village_id, warning? }
@@ -218,7 +227,9 @@ write out.sql, report.json
   git-ignored.)
 - **`eml-source.js`**: assert it extracts all attachments from a small sample
   `.eml`, unwraps a forwarded `Re:` wrapper to the inner original, decodes
-  quoted-printable bodies, and reports duplicate ids.
+  quoted-printable bodies, and on duplicate ids keeps the earliest service date
+  while marking the rest discarded (with same-date duplicates left for manual
+  choice).
 - **`sql-writer.js`**: assert value escaping (quotes, NULLs, dates); that clean
   rows render as runnable `INSERT`s; that flagged/duplicate rows render with
   `-- WARNING` lines **and every line of the `INSERT` commented out**; and that
@@ -230,6 +241,7 @@ write out.sql, report.json
 
 1. Ensure `./Recovery_emails.eml` is present (default input path).
 2. `node src/recreate/index.js --in ./Recovery_emails.eml --out out.sql`
-3. Review `out.sql` and `report.json`; resolve any `-- WARNING` rows — especially
-   the **duplicate #1024** (pick one date) and any unresolved `village_id`.
+3. Review `out.sql` and `report.json`; resolve any `-- WARNING` rows (e.g.
+   unresolved `village_id`). The **duplicate #1024 is auto-resolved** (6/24/2026
+   kept, 6/26/2026 emitted as `-- DISCARDED`); just confirm it looks right.
 4. Run the reviewed SQL manually against `vg`.
