@@ -278,7 +278,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
               <table cellpadding='15' cellspacing='0' border='0'>
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
-                    Hello ${volunteerName}.<br><br>
+                    Hello,<br><br>
                     The Village Common of RI is seeking someone to provide ${service_name} for ${member_name}<br>
                     on ${startDate}.<br>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
@@ -528,10 +528,12 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
     state,
     zip,
     destination,
+    start_at,
     transportation_type,
     service_notes,
   } = requestData;
 
+  const startDate = formatDateOnly(start_at);
   const memberAddress = member_address
     ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_cell ? `${member_cell} (cell)` : ''}`
     : '';
@@ -562,7 +564,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Hello,<br><br>
-                    The Village Common of RI is seeking someone to provide ${service_name} for ${member_name} on Monday, December 29, 2025.
+                    The Village Common of RI is seeking someone to provide ${service_name} for ${member_name} on ${startDate}.
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
@@ -641,6 +643,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
     state,
     zip,
     destination,
+    start_at,
     transportation_type,
     service_notes,
     emergency_contact_name,
@@ -648,6 +651,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
     emergency_contact_phone,
   } = requestData;
 
+  const startDate = formatDateOnly(start_at);
   const memberAddress = member_address
     ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_cell ? `cell: ${member_cell}` : ''}`
     : '';
@@ -690,7 +694,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                           </tr>
                           <tr>
                             <td>Date:</td>
-                            <td>Monday, December 29, 2025 (The time is flexible)</td>
+                            <td>${startDate} (The time is flexible)</td>
                           </tr>
                           <tr>
                             <td valign='top'>Requesting Member:</td>
@@ -856,7 +860,7 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
   } = requestData;
 
   const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>Home: ${member_phone || ''}<br>Cell: ${member_cell || ''}`
+    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone ? `Home: ${member_phone}<br>` : ''}${member_cell ? `Cell: ${member_cell}` : ''}`
     : '';
 
   const html = `<html>

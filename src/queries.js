@@ -24,6 +24,7 @@ const GET_SERVICE_REQUEST = `
     sr.start_at,
     sr.appt_time,
     sr.return_time,
+    sr.finish_at,
     sr.address,
     sr.city,
     sr.state,
