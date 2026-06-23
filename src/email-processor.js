@@ -40,6 +40,17 @@ function formatDateForSubject(isoDateTime) {
   return `${month}/${day}/${year}`;
 }
 
+function getFirstName(fullName) {
+  if (!fullName) return '';
+  // Handle "Last, First" format
+  if (fullName.includes(',')) {
+    const parts = fullName.split(',');
+    return parts[1].trim().split(' ')[0];
+  }
+  // Handle "First Last" format
+  return fullName.split(' ')[0];
+}
+
 function getOpenRequestTemplate(serviceName, volunteerName, requestData) {
   if (serviceName === 'Household Chores/Handy Help') {
     return buildHomeHelpOpenRequestTemplate(volunteerName, requestData);
@@ -99,12 +110,6 @@ async function resolveRecipientsForOpenRequest(requestData) {
     return null;
   }
 
-  const memberEmail = requestData.member_email;
-  if (!memberEmail) {
-    console.warn(`Member has no email address: ${requestData.member_name}`);
-    return null;
-  }
-
   const bccList = volunteerEmails.join(', ');
 
   if (testConfig.overrideRecipients) {
@@ -136,22 +141,19 @@ async function resolveRecipientsForConfirmedRequest(event, requestData) {
   }
 
   const memberEmail = requestData.member_email;
-  if (!memberEmail) {
-    console.warn(`Member has no email address: ${requestData.member_name}`);
-    return null;
-  }
-
   const bccList = [volunteer.email, memberEmail].filter(Boolean).join(', ');
+
+  const intendedRecipientsList = [{ full_name: volunteer.full_name, email: volunteer.email }];
+  if (memberEmail) {
+    intendedRecipientsList.push({ full_name: requestData.member_name, email: memberEmail });
+  }
 
   if (testConfig.overrideRecipients) {
     console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
     return {
       bcc: testConfig.overrideRecipients.join(', '),
       volunteerName: volunteer.full_name,
-      intendedRecipients: [
-        { full_name: volunteer.full_name, email: volunteer.email },
-        { full_name: requestData.member_name, email: memberEmail },
-      ],
+      intendedRecipients: intendedRecipientsList,
       isTestMode: true,
     };
   }
@@ -179,6 +181,7 @@ async function pollOnce() {
 
   for (const event of events) {
     try {
+      console.log(`[${new Date().toISOString()}] Processing service request #${event.service_request_id}`);
       const requestData = await getServiceRequest(event.service_request_id);
 
       if (!requestData) {
@@ -195,7 +198,7 @@ async function pollOnce() {
       if (event.volunteer_person_id) {
         recipients = await resolveRecipientsForConfirmedRequest(event, requestData);
         if (recipients) {
-          html = getConfirmedRequestTemplate(requestData.service_name, recipients.volunteerName, requestData);
+          html = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteerName), requestData);
           subjectPrefix = 'SR Conf';
         }
       } else {

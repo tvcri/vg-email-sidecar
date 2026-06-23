@@ -668,7 +668,8 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}. Short Description: ${description || ''}<br><br>
+                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}.<br><br>
+                    Short Description: ${description || ''}<br><br>
                     You are now confirmed as a service provider for this service request.
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
@@ -871,7 +872,8 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}. Short Description: ${description || ''}<br><br>
+                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}.<br><br>
+                    Short Description: ${description || ''}<br><br>
                     You are now confirmed as a service provider for this service request.
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
