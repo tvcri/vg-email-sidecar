@@ -1,0 +1,19 @@
+{
+  "name": "vg-email-sidecar",
+  "version": "1.0.0",
+  "description": "Email sidecar for Village Green service requests",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "googleapis": "^173.0.0",
+    "mysql2": "^3.22.5"
+  }
+}
