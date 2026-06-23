@@ -109,15 +109,27 @@ does **not** silently pick one.
 | `status` | constant | Always `'Open'`. |
 | `member_person_id` | DB lookup of `member_name` (from subject) in `person` | NULL + WARNING on 0 / >1 match. |
 | `village_id` | DB: `person.village_id` of matched member | **NOT NULL** — if member unresolved, the row is emitted **commented out** with a prominent `-- WARNING: village_id must be set manually` (NULL would violate the constraint). |
-| `start_at` | Subject `Service Date: M/D/YYYY` | Date only; time refined from body pickup time when present. |
+| `start_at` | **Ride:** Service Date + body "Initial Pickup Time". **Non-ride:** Service Date at `00:00:00`. | datetime. |
+| `finish_at` | **Ride:** Service Date + body "Drop-off Time". **Non-ride:** Service Date at `23:59:00`. | datetime. |
+| `appt_time` | **Ride:** Service Date + body "Appointment Time". **Non-ride:** NULL. | datetime. |
+| `return_time` | **Ride:** Service Date + body "Return Pickup Time". **Non-ride:** NULL. | datetime. |
 | `created_at` | Email `Date` header | |
 | `service_name` | Body header line ("...seeking someone to provide **X** for...") | Falls back to NULL + WARNING if unparseable. |
 | `description` | Body "Short Description" cell | Best-effort. |
 | `destination`, `address`, `city`, `state`, `zip` | Body "Destination" cell (Rides/Errands) | Best-effort; NULL when absent (e.g. Home Help / Tech Support). |
-| `appt_time`, `return_time` | Body "Appointment Time" / "Return Pickup Time" cells | Best-effort; combined with `start_at` date. |
 | `transportation_type` | Body "Transportation" cell | Best-effort. |
-| `phone`, `instructions`, `finish_at`, `request_number` | not recoverable | Left NULL. |
+| `phone`, `instructions`, `request_number` | not recoverable | Left NULL. |
 | `volunteer_person_id` | constant | Always NULL (open requests). |
+
+**Time fields.** Ride emails (service_name starting `Ride:`) contain four clean
+labeled time cells — `Initial Pickup Time`, `Appointment Time`,
+`Return Pickup Time`, `Drop-off Time` — each a plain `H:MM AM/PM` value (verified
+across all ride attachments in `Recovery_2.eml`). These map to
+`start_at`/`appt_time`/`return_time`/`finish_at` respectively, each combined with
+the subject's Service Date (interpreted in local Eastern time, stored as a naive
+`datetime`). One-way rides simply lack the return/drop-off cells, so those stay
+NULL. Non-ride requests (Home Help, Tech Support, Errands) have no time cells; they
+get `start_at` = date `00:00:00` and `finish_at` = date `23:59:00`.
 
 "Body best-effort" means: parse the value from the HTML when the corresponding
 labeled table cell is present; otherwise leave the column NULL. Member contact
