@@ -23,7 +23,7 @@ function encodeHeader(text) {
 function buildRawMessage({ to, bcc, subject, html, from }) {
   const messageParts = [
     `From: ${from}`,
-    `To: ${to}`,
+    `To: ${to || 'village-green@villagecommonri.org'}`,
     ...(bcc ? [`Bcc: ${bcc}`] : []),
     `Subject: ${encodeHeader(subject)}`,
     'MIME-Version: 1.0',

@@ -63,7 +63,7 @@ const GET_VOLUNTEER = `
 `;
 
 const GET_PERSON = `
-  SELECT id, full_name, email
+  SELECT id, full_name, email, phone, cell
   FROM person
   WHERE id = ?
 `;

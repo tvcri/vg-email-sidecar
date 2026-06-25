@@ -936,6 +936,405 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
   return html;
 }
 
+function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  const {
+    service_name,
+    description,
+    address,
+    city,
+    state,
+    zip,
+    destination,
+    start_at,
+    appt_time,
+    return_time,
+    finish_at,
+    transportation_type,
+    service_notes,
+  } = requestData;
+
+  const startDate = formatDateOnly(start_at);
+  const pickupTime = formatTimeOnly(start_at);
+  const appointmentTime = formatTimeOnly(appt_time);
+  const returnPickupTime = formatTimeOnly(return_time);
+  const dropoffTime = formatTimeOnly(finish_at);
+
+  const destinationAddress = destination && address
+    ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
+    : (destination || '');
+
+  const volunteerContact = [
+    volunteerData.full_name,
+    volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
+    volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
+  ].filter(Boolean).join('<br>');
+
+  const html = `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <table border='0' cellpadding='50' cellspacing='0' style='background-color: #b2b2b2;width: 100%;'>
+    <tr>
+      <td align='center'>
+        <table border='0' cellpadding='4' cellspacing='0' style='background-color:white; width:600px;border-width:1px;border-color:Black; border-style:solid;border-radius:10px;'>
+          <tr>
+            <td>
+              <table cellpadding='0' cellspacing='0' border='0'>
+                <tr>
+                  <td style='font-weight: bold; font-size: 24px; font-family: Arial, Sans-Serif;padding:10px 5px;border-bottom:1px solid #cdcdcd;width:100%;'>
+                    The Village Common of RI
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table cellpadding='15' cellspacing='0' border='0'>
+                <tr>
+                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
+                    Hello ${memberFirstName}.<br><br>
+                    <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
+                      <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                        <tbody>
+                          <tr>
+                            <td>Short Description:</td>
+                            <td>${description || ''}</td>
+                          </tr>
+                          <tr>
+                            <td>Service:</td>
+                            <td>${service_name}</td>
+                          </tr>
+                          <tr>
+                            <td>Date:</td>
+                            <td>${startDate}</td>
+                          </tr>
+                          ${pickupTime ? `<tr>
+                            <td valign='top'>Initial Pickup Time</td>
+                            <td valign='top'>${pickupTime}</td>
+                          </tr>` : ''}
+                          ${appointmentTime ? `<tr>
+                            <td valign='top'>Appointment Time</td>
+                            <td valign='top'>${appointmentTime}</td>
+                          </tr>` : ''}
+                          <tr>
+                            <td valign='top'>Destination:</td>
+                            <td valign='top'>
+                              ${destinationAddress}
+                            </td>
+                          </tr>
+                          ${returnPickupTime ? `<tr>
+                            <td valign='top'>Return Pickup Time</td>
+                            <td valign='top'>${returnPickupTime}</td>
+                          </tr>` : ''}
+                          ${dropoffTime ? `<tr>
+                            <td valign='top'>Drop-off Time</td>
+                            <td valign='top'>${dropoffTime}</td>
+                          </tr>` : ''}
+                          ${transportation_type ? `<tr>
+                            <td valign='top'>Transportation:</td>
+                            <td>${transportation_type}</td>
+                          </tr>` : ''}
+                        </tbody>
+                      </table>
+                    </div>
+                    <br>
+                    Your service provider(s) will be:<br><br>
+                    ${volunteerContact}<br><br>
+                    ${service_notes ? `<br>` : ''}
+                    If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
+                    <br>
+                    The Village Common of RI<br>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style='font-size:10px;font-style:italic;color:#666666'>
+                This email was sent in response to the use of the ClubExpress platform and website by The Village Common of RI. It was generated by:<br>
+                ClubExpress<br>
+                <a href='#' style='color:#1a0dab;'>1213 W. Morehead Street, 5th Floor</a><br>
+                Charlotte, NC 28208
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return html;
+}
+
+function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  const {
+    service_name,
+    description,
+    service_notes,
+  } = requestData;
+
+  const volunteerContact = [
+    volunteerData.full_name,
+    volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
+    volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
+  ].filter(Boolean).join('<br>');
+
+  const html = `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <table border='0' cellpadding='50' cellspacing='0' style='background-color: #b2b2b2;width: 100%;'>
+    <tr>
+      <td align='center'>
+        <table border='0' cellpadding='4' cellspacing='0' style='background-color:white; width:600px;border-width:1px;border-color:Black; border-style:solid;border-radius:10px;'>
+          <tr>
+            <td>
+              <table cellpadding='0' cellspacing='0' border='0'>
+                <tr>
+                  <td style='font-weight: bold; font-size: 24px; font-family: Arial, Sans-Serif;padding:10px 5px;border-bottom:1px solid #cdcdcd;width:100%;'>
+                    The Village Common of RI
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table cellpadding='15' cellspacing='0' border='0'>
+                <tr>
+                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
+                    Hello ${memberFirstName}.<br><br>
+                    <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
+                      <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                        <tbody>
+                          <tr>
+                            <td>Short Description:</td>
+                            <td>${description || ''}</td>
+                          </tr>
+                          <tr>
+                            <td>Service:</td>
+                            <td>${service_name}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <br>
+                    Your service provider(s) will be:<br><br>
+                    ${volunteerContact}<br><br>
+                    If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
+                    <br>
+                    The Village Common of RI<br>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style='font-size:10px;font-style:italic;color:#666666'>
+                This email was sent in response to the use of the ClubExpress platform and website by The Village Common of RI. It was generated by:<br>
+                ClubExpress<br>
+                <a href='#' style='color:#1a0dab;'>1213 W. Morehead Street, 5th Floor</a><br>
+                Charlotte, NC 28208
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return html;
+}
+
+function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  const {
+    service_name,
+    description,
+    address,
+    city,
+    state,
+    zip,
+    destination,
+    start_at,
+    transportation_type,
+    service_notes,
+  } = requestData;
+
+  const startDate = formatDateOnly(start_at);
+  const destinationAddress = destination && address
+    ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
+    : (destination || '');
+
+  const volunteerContact = [
+    volunteerData.full_name,
+    volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
+    volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
+  ].filter(Boolean).join('<br>');
+
+  const html = `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <table border='0' cellpadding='50' cellspacing='0' style='background-color: #b2b2b2;width: 100%;'>
+    <tr>
+      <td align='center'>
+        <table border='0' cellpadding='4' cellspacing='0' style='background-color:white; width:600px;border-width:1px;border-color:Black; border-style:solid;border-radius:10px;'>
+          <tr>
+            <td>
+              <table cellpadding='0' cellspacing='0' border='0'>
+                <tr>
+                  <td style='font-weight: bold; font-size: 24px; font-family: Arial, Sans-Serif;padding:10px 5px;border-bottom:1px solid #cdcdcd;width:100%;'>
+                    The Village Common of RI
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table cellpadding='15' cellspacing='0' border='0'>
+                <tr>
+                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
+                    Hello ${memberFirstName}.<br><br>
+                    <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
+                      <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                        <tbody>
+                          <tr>
+                            <td>Short Description:</td>
+                            <td>${description || ''}</td>
+                          </tr>
+                          <tr>
+                            <td>Service:</td>
+                            <td>${service_name}</td>
+                          </tr>
+                          <tr>
+                            <td>Date:</td>
+                            <td>${startDate} (The time is flexible)</td>
+                          </tr>
+                          <tr>
+                            <td valign='top'>Destination:</td>
+                            <td valign='top'>${destinationAddress}</td>
+                          </tr>
+                          ${transportation_type ? `<tr>
+                            <td valign='top'>Transportation:</td>
+                            <td>${transportation_type}</td>
+                          </tr>` : ''}
+                        </tbody>
+                      </table>
+                    </div>
+                    <br>
+                    Your service provider(s) will be:<br><br>
+                    ${volunteerContact}<br><br>
+                    If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
+                    <br>
+                    The Village Common of RI<br>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style='font-size:10px;font-style:italic;color:#666666'>
+                This email was sent in response to the use of the ClubExpress platform and website by The Village Common of RI. It was generated by:<br>
+                ClubExpress<br>
+                <a href='#' style='color:#1a0dab;'>1213 W. Morehead Street, 5th Floor</a><br>
+                Charlotte, NC 28208
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return html;
+}
+
+function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  const {
+    service_name,
+    description,
+    service_notes,
+  } = requestData;
+
+  const volunteerContact = [
+    volunteerData.full_name,
+    volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
+    volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
+  ].filter(Boolean).join('<br>');
+
+  const html = `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <table border='0' cellpadding='50' cellspacing='0' style='background-color: #b2b2b2;width: 100%;'>
+    <tr>
+      <td align='center'>
+        <table border='0' cellpadding='4' cellspacing='0' style='background-color:white; width:600px;border-width:1px;border-color:Black; border-style:solid;border-radius:10px;'>
+          <tr>
+            <td>
+              <table cellpadding='0' cellspacing='0' border='0'>
+                <tr>
+                  <td style='font-weight: bold; font-size: 24px; font-family: Arial, Sans-Serif;padding:10px 5px;border-bottom:1px solid #cdcdcd;width:100%;'>
+                    The Village Common of RI
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table cellpadding='15' cellspacing='0' border='0'>
+                <tr>
+                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
+                    Hello ${memberFirstName}.<br><br>
+                    <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
+                      <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                        <tbody>
+                          <tr>
+                            <td>Short Description:</td>
+                            <td>${description || ''}</td>
+                          </tr>
+                          <tr>
+                            <td>Service:</td>
+                            <td>${service_name}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <br>
+                    Your service provider(s) will be:<br><br>
+                    ${volunteerContact}<br><br>
+                    If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
+                    <br>
+                    The Village Common of RI<br>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style='font-size:10px;font-style:italic;color:#666666'>
+                This email was sent in response to the use of the ClubExpress platform and website by The Village Common of RI. It was generated by:<br>
+                ClubExpress<br>
+                <a href='#' style='color:#1a0dab;'>1213 W. Morehead Street, 5th Floor</a><br>
+                Charlotte, NC 28208
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return html;
+}
+
 module.exports = {
   buildHomeHelpOpenRequestTemplate,
   buildHomeHelpConfirmedRequestTemplate,
@@ -945,4 +1344,8 @@ module.exports = {
   buildErrandsConfirmedRequestTemplate,
   buildTechSupportOpenRequestTemplate,
   buildTechSupportConfirmedRequestTemplate,
+  buildRidesMemberConfirmedTemplate,
+  buildHomeHelpMemberConfirmedTemplate,
+  buildErrandsMemberConfirmedTemplate,
+  buildTechSupportMemberConfirmedTemplate,
 };
