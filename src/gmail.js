@@ -1,13 +1,14 @@
 const fs = require('fs');
 const { google } = require('googleapis');
+const { getGmailConfig } = require('./config');
 
-const TOKEN_PATH = './services-mailer-token.json';
 const FROM_ADDRESS = 'services@villagecommonri.org';
 const FROM_NAME = 'The Village Common of RI';
 
 function buildAuthClient() {
+  const { tokenPath } = getGmailConfig();
   const { client_id, client_secret, refresh_token } = JSON.parse(
-    fs.readFileSync(TOKEN_PATH, 'utf8')
+    fs.readFileSync(tokenPath, 'utf8')
   );
   const oAuth2Client = new google.auth.OAuth2(client_id, client_secret);
   oAuth2Client.setCredentials({ refresh_token });
