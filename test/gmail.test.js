@@ -22,3 +22,56 @@ test('buildAuthClient reads token path from getGmailConfig()', () => {
   fs.unlinkSync(TEMP_TOKEN);
   delete process.env.GMAIL_TOKEN_PATH;
 });
+
+test('verifyCredentials throws when token file is missing', async () => {
+  process.env.GMAIL_TOKEN_PATH = '/nonexistent/path/token.json';
+  delete require.cache[require.resolve('../src/gmail.js')];
+  delete require.cache[require.resolve('../src/config.js')];
+  const { verifyCredentials } = require('../src/gmail.js');
+
+  await assert.rejects(
+    () => verifyCredentials(),
+    (err) => {
+      assert.match(err.message, /ENOENT/);
+      return true;
+    }
+  );
+
+  delete process.env.GMAIL_TOKEN_PATH;
+});
+
+test('verifyCredentials warns but resolves when Gmail API rejects the token', async () => {
+  const TEMP_TOKEN2 = path.join(require('os').tmpdir(), 'test-token2.json');
+  fs.writeFileSync(TEMP_TOKEN2, JSON.stringify({
+    client_id: 'id',
+    client_secret: 'secret',
+    refresh_token: 'bad-refresh',
+  }));
+  process.env.GMAIL_TOKEN_PATH = TEMP_TOKEN2;
+
+  delete require.cache[require.resolve('../src/gmail.js')];
+  delete require.cache[require.resolve('../src/config.js')];
+
+  const googleapis = require('googleapis');
+  const origGmail = googleapis.google.gmail.bind(googleapis.google);
+  googleapis.google.gmail = () => ({
+    users: {
+      getProfile: async () => { throw new Error('invalid_grant'); },
+    },
+  });
+
+  const { verifyCredentials } = require('../src/gmail.js');
+
+  const warnings = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+
+  await assert.doesNotReject(() => verifyCredentials());
+
+  assert.ok(warnings.some(w => w.includes('invalid_grant')), 'expected warning about API failure');
+
+  console.warn = origWarn;
+  googleapis.google.gmail = origGmail;
+  fs.unlinkSync(TEMP_TOKEN2);
+  delete process.env.GMAIL_TOKEN_PATH;
+});

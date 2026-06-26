@@ -48,6 +48,16 @@ function buildRawMessage({ to, bcc, subject, html, from }) {
     .replace(/=+$/, '');
 }
 
+async function verifyCredentials() {
+  const auth = buildAuthClient(); // throws if file missing/unreadable
+  try {
+    const gmail = google.gmail({ version: 'v1', auth });
+    await gmail.users.getProfile({ userId: 'me' });
+  } catch (error) {
+    console.warn(`Gmail credential probe failed: ${error.message}`);
+  }
+}
+
 async function sendEmail({ to, bcc, subject, html }) {
   try {
     const auth = buildAuthClient();
@@ -73,4 +83,4 @@ async function sendEmail({ to, bcc, subject, html }) {
   }
 }
 
-module.exports = { sendEmail };
+module.exports = { sendEmail, verifyCredentials };
