@@ -21,9 +21,16 @@ function encodeHeader(text) {
 }
 
 function buildRawMessage({ to, bcc, subject, html, from }) {
+  // Gmail requires a recipient somewhere (To, Cc, or Bcc) — not specifically a
+  // To: header. When `to` is omitted we send a "blind" message carried by Bcc:
+  // and leave out To: entirely, so guard against the no-recipient case.
+  if (!to && !bcc) {
+    throw new Error('buildRawMessage requires either a "to" or "bcc" recipient');
+  }
+
   const messageParts = [
     `From: ${from}`,
-    `To: ${to}`,
+    ...(to ? [`To: ${to}`] : []),
     ...(bcc ? [`Bcc: ${bcc}`] : []),
     `Subject: ${encodeHeader(subject)}`,
     'MIME-Version: 1.0',

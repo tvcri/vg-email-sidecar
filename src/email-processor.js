@@ -16,6 +16,10 @@ const {
   buildErrandsConfirmedRequestTemplate,
   buildTechSupportOpenRequestTemplate,
   buildTechSupportConfirmedRequestTemplate,
+  buildRidesMemberConfirmedTemplate,
+  buildHomeHelpMemberConfirmedTemplate,
+  buildErrandsMemberConfirmedTemplate,
+  buildTechSupportMemberConfirmedTemplate,
 } = require('./templates');
 
 const SERVICE_TYPE_TO_CAPABILITY = {
@@ -89,6 +93,22 @@ function getConfirmedRequestTemplate(serviceName, volunteerName, requestData) {
 }
 
 
+function getMemberConfirmedTemplate(serviceName, memberFirstName, volunteerData, requestData) {
+  if (serviceName === 'Household Chores/Handy Help') {
+    return buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, requestData);
+  }
+  if (serviceName.startsWith('Ride:')) {
+    return buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, requestData);
+  }
+  if (serviceName.startsWith('Errand:')) {
+    return buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, requestData);
+  }
+  if (serviceName === 'Tech Support') {
+    return buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData, requestData);
+  }
+  return buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, requestData);
+}
+
 function getCapabilityFromServiceType(serviceName) {
   return SERVICE_TYPE_TO_CAPABILITY[serviceName] || null;
 }
@@ -146,26 +166,29 @@ async function resolveRecipientsForConfirmedRequest(event, requestData) {
   }
 
   const memberEmail = requestData.member_email;
-  const bccList = [volunteer.email, memberEmail].filter(Boolean).join(', ');
 
-  const intendedRecipientsList = [{ full_name: volunteer.full_name, email: volunteer.email }];
+  const intendedRecipients = [{ full_name: volunteer.full_name, email: volunteer.email }];
   if (memberEmail) {
-    intendedRecipientsList.push({ full_name: requestData.member_name, email: memberEmail });
+    intendedRecipients.push({ full_name: requestData.member_name, email: memberEmail });
   }
 
   if (testConfig.overrideRecipients) {
     console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
     return {
-      bcc: testConfig.overrideRecipients.join(', '),
-      volunteerName: volunteer.full_name,
-      intendedRecipients: intendedRecipientsList,
+      volunteerEmail: testConfig.overrideRecipients.join(', '),
+      memberEmail: testConfig.overrideRecipients.join(', '),
+      volunteer,
+      memberName: requestData.member_name,
+      intendedRecipients,
       isTestMode: true,
     };
   }
 
   return {
-    bcc: bccList,
-    volunteerName: volunteer.full_name,
+    volunteerEmail: volunteer.email,
+    memberEmail: memberEmail || null,
+    volunteer,
+    memberName: requestData.member_name,
     intendedRecipients: null,
     isTestMode: false,
   };
@@ -203,8 +226,75 @@ async function pollOnce() {
       if (event.volunteer_person_id) {
         recipients = await resolveRecipientsForConfirmedRequest(event, requestData);
         if (recipients) {
-          html = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteerName), requestData);
           subjectPrefix = 'SR Conf';
+          subject = `${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+
+          const volunteerHtml = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteer.full_name), requestData);
+          const memberFirstName = getFirstName(recipients.memberName);
+          const memberHtml = getMemberConfirmedTemplate(requestData.service_name, memberFirstName, recipients.volunteer, requestData);
+
+          const addTestNotice = (baseHtml, intendedList) => {
+            const notice = `<tr>
+            <td>
+              <div style='margin: 20px 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 11px; color: #333;'>
+                <strong style='color: #856404;'>TEST MODE:</strong> This email was sent to test recipients. Intended recipients would have been:<br><br>
+                ${intendedList}
+              </div>
+            </td>
+          </tr>`;
+            return baseHtml.replace('</table>\n      </td>\n    </tr>\n  </table>\n</body>', `${notice}</table>\n      </td>\n    </tr>\n  </table>\n</body>`);
+          };
+
+          // Send volunteer email
+          let finalVolunteerHtml = volunteerHtml;
+          if (recipients.isTestMode) {
+            const intendedStr = (recipients.intendedRecipients || [])
+              .map(r => `${r.full_name} (${r.email})`).join('<br>');
+            finalVolunteerHtml = addTestNotice(volunteerHtml, intendedStr);
+          }
+          const volunteerResult = await sendEmail({
+            to: recipients.volunteerEmail,
+            subject,
+            html: finalVolunteerHtml,
+          });
+
+          if (volunteerResult.success) {
+            console.log(`[${new Date().toISOString()}] Volunteer email sent: ${subject}`);
+          } else {
+            console.error(`[${new Date().toISOString()}] Failed to send volunteer email: ${volunteerResult.error}`);
+            failed++;
+          }
+
+          // Send member email (only if member has an email address)
+          if (recipients.memberEmail) {
+            let finalMemberHtml = memberHtml;
+            if (recipients.isTestMode) {
+              const intendedStr = (recipients.intendedRecipients || [])
+                .map(r => `${r.full_name} (${r.email})`).join('<br>');
+              finalMemberHtml = addTestNotice(memberHtml, intendedStr);
+            }
+            const memberResult = await sendEmail({
+              to: recipients.memberEmail,
+              subject,
+              html: finalMemberHtml,
+            });
+
+            if (memberResult.success) {
+              console.log(`[${new Date().toISOString()}] Member email sent: ${subject}`);
+            } else {
+              console.error(`[${new Date().toISOString()}] Failed to send member email: ${memberResult.error}`);
+              failed++;
+            }
+          }
+
+          if (volunteerResult.success) {
+            if (!recipients.isTestMode) {
+              await markEmailEventSent(event.id);
+            }
+            sent++;
+          }
+        } else {
+          failed++;
         }
       } else {
         recipients = await resolveRecipientsForOpenRequest(requestData);
@@ -214,7 +304,7 @@ async function pollOnce() {
         }
       }
 
-      if (recipients && html) {
+      if (!event.volunteer_person_id && recipients && html) {
         // subject = `The Village Common of RI - ${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
         subject = `${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
 
@@ -246,7 +336,6 @@ async function pollOnce() {
         }
 
         const result = await sendEmail({
-          to: 'services@villagecommonri.org',
           bcc: recipients.bcc,
           subject,
           html: finalHtml,
@@ -254,13 +343,15 @@ async function pollOnce() {
 
         if (result.success) {
           console.log(`[${new Date().toISOString()}] Email sent: ${subject}`);
-          await markEmailEventSent(event.id);
+          if (!recipients.isTestMode) {
+            await markEmailEventSent(event.id);
+          }
           sent++;
         } else {
           console.error(`[${new Date().toISOString()}] Failed to send email: ${result.error}`);
           failed++;
         }
-      } else {
+      } else if (!event.volunteer_person_id) {
         failed++;
       }
     } catch (error) {
