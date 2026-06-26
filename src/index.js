@@ -20,8 +20,10 @@ async function startSidecar() {
     console.log('Database pool initialized');
 
     console.log('Verifying Gmail credentials...');
-    await verifyCredentials();
-    console.log('Gmail credentials OK');
+    const credentialsOk = await verifyCredentials();
+    if (credentialsOk) {
+      console.log('Gmail credentials OK');
+    }
 
     console.log('Running initial poll...');
     await pollOnce();

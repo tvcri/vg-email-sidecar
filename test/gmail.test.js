@@ -66,7 +66,8 @@ test('verifyCredentials warns but resolves when Gmail API rejects the token', as
   const origWarn = console.warn;
   console.warn = (...args) => warnings.push(args.join(' '));
 
-  await assert.doesNotReject(() => verifyCredentials());
+  const result = await verifyCredentials();
+  assert.equal(result, false, 'expected false on API failure');
 
   assert.ok(warnings.some(w => w.includes('invalid_grant')), 'expected warning about API failure');
 

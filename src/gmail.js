@@ -53,8 +53,10 @@ async function verifyCredentials() {
   try {
     const gmail = google.gmail({ version: 'v1', auth });
     await gmail.users.getProfile({ userId: 'me' });
+    return true;
   } catch (error) {
     console.warn(`Gmail credential probe failed: ${error.message}`);
+    return false;
   }
 }
 
