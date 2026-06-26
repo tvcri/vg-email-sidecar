@@ -39,9 +39,5 @@ Recovery_emails.eml
 Recovery_2.eml
 out.sql
 report.json
-
-# Superpowers scratch artifacts (specs, plans)
 scratch/
-
-# Template preview output
 preview/
