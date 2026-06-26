@@ -48,16 +48,15 @@ function buildRawMessage({ to, bcc, subject, html, from }) {
     .replace(/=+$/, '');
 }
 
-async function verifyCredentials() {
-  const auth = buildAuthClient(); // throws if file missing/unreadable
-  try {
-    const gmail = google.gmail({ version: 'v1', auth });
-    await gmail.users.getProfile({ userId: 'me' });
-    return true;
-  } catch (error) {
-    console.warn(`Gmail credential probe failed: ${error.message}`);
+function verifyCredentials() {
+  const { tokenPath } = getGmailConfig();
+  const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8')); // throws if missing/unreadable
+  const missing = ['client_id', 'client_secret', 'refresh_token'].filter(k => !token[k]);
+  if (missing.length > 0) {
+    console.warn(`Gmail token file is missing required fields: ${missing.join(', ')}`);
     return false;
   }
+  return true;
 }
 
 async function sendEmail({ to, bcc, subject, html }) {
