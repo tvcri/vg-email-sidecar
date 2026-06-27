@@ -21,6 +21,7 @@ const {
   buildHomeHelpMemberConfirmedTemplate,
   buildErrandsMemberConfirmedTemplate,
   buildTechSupportMemberConfirmedTemplate,
+  buildCancelledTemplate,
 } = require('./templates');
 
 const SERVICE_TYPE_TO_CAPABILITY = {
@@ -223,6 +224,36 @@ async function resolveRecipientsForConfirmedRequest(requestData) {
   };
 }
 
+async function resolveRecipientsForCancelledRequest(requestData) {
+  const testConfig = getTestConfig();
+
+  const volunteer = await getPerson(requestData.volunteer_person_id);
+
+  if (!volunteer || !volunteer.email) {
+    console.warn(`Volunteer person not found or has no email: ${requestData.volunteer_person_id}`);
+    return null;
+  }
+
+  const intendedRecipients = [{ full_name: volunteer.full_name, email: volunteer.email }];
+
+  if (testConfig.overrideRecipients) {
+    console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
+    return {
+      volunteerEmail: testConfig.overrideRecipients.join(', '),
+      volunteer,
+      intendedRecipients,
+      isTestMode: true,
+    };
+  }
+
+  return {
+    volunteerEmail: volunteer.email,
+    volunteer,
+    intendedRecipients: null,
+    isTestMode: false,
+  };
+}
+
 async function pollOnce() {
   const events = await getPendingEmailEvents();
 
@@ -324,7 +355,43 @@ async function pollOnce() {
           failed++;
         }
 
-      } else if (event.event_type === 'cancelled' || event.event_type === 'reminder') {
+      } else if (event.event_type === 'cancelled') {
+        // The cancellation notice in the samples goes to the volunteer who was
+        // confirmed for the request. With no confirmed volunteer there is no one
+        // to notify, so the event is complete with no recipients.
+        if (!requestData.volunteer_person_id) {
+          console.log(`[${new Date().toISOString()}] SR #${requestData.id} cancelled with no confirmed volunteer; nothing to send`);
+          await markNotificationSent(event.id, recipientPersonIds);
+          sent++;
+        } else {
+          const recipients = await resolveRecipientsForCancelledRequest(requestData);
+          if (recipients) {
+            const subject = `SR Cancel #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+            const html = buildCancelledTemplate(getFirstName(recipients.volunteer.full_name), requestData);
+            let finalHtml = html;
+            if (recipients.isTestMode) {
+              const intendedStr = (recipients.intendedRecipients || [])
+                .map(r => `${r.full_name} (${r.email})`).join('<br>');
+              finalHtml = applyTestBanner(html, intendedStr);
+            }
+            const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml });
+            if (result.success) {
+              console.log(`[${new Date().toISOString()}] Cancellation email sent: ${subject}`);
+              recipientPersonIds.push(recipients.volunteer.id);
+              await markNotificationSent(event.id, recipientPersonIds);
+              sent++;
+            } else {
+              console.error(`[${new Date().toISOString()}] Failed to send cancellation email: ${result.error}`);
+              await markNotificationFailed(event.id);
+              failed++;
+            }
+          } else {
+            await markNotificationFailed(event.id);
+            failed++;
+          }
+        }
+
+      } else if (event.event_type === 'reminder') {
         console.warn(`[${new Date().toISOString()}] No template yet for event_type=${event.event_type}, marking failed`);
         await markNotificationFailed(event.id);
         failed++;

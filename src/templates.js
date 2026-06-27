@@ -1335,6 +1335,109 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
   return html;
 }
 
+// Cancellation notices are identical across all service types in the samples:
+// only the Service value and whether a time is shown vary. Rides include the
+// pickup time (start_at); the other service types are flexible and show the
+// date only. This single template covers all of them, parameterized by the
+// recipient's first name (the confirmed volunteer in the samples).
+function buildCancelledTemplate(recipientFirstName, requestData) {
+  const {
+    service_name,
+    member_name,
+    member_address,
+    member_city,
+    member_state,
+    member_zip,
+    start_at,
+  } = requestData;
+
+  const dateOnly = formatDateOnly(start_at);
+  const timeOnly = formatTimeOnly(start_at);
+  // Rides show date and pickup time; other service types show the date only.
+  const dateTime = service_name && service_name.startsWith('Ride:') && timeOnly
+    ? `${dateOnly} ${timeOnly}`
+    : dateOnly;
+
+  const memberAddress = member_address
+    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}`
+    : member_name || '';
+
+  const html = `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <table border='0' cellpadding='50' cellspacing='0' style='background-color: #b2b2b2;width: 100%;'>
+    <tr>
+      <td align='center'>
+        <table border='0' cellpadding='4' cellspacing='0' style='background-color:white; width:600px;border-width:1px;border-color:Black; border-style:solid;border-radius:10px;'>
+          <tr>
+            <td>
+              <table cellpadding='0' cellspacing='0' border='0'>
+                <tr>
+                  <td style='font-weight: bold; font-size: 24px; font-family: Arial, Sans-Serif;padding:10px 5px;border-bottom:1px solid #cdcdcd;width:100%;'>
+                    The Village Common of RI
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table cellpadding='15' cellspacing='0' border='0'>
+                <tr>
+                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
+                    Dear ${recipientFirstName},<br><br>
+                    <strong>THE FOLLOWING SERVICE REQUEST THAT YOU WERE CONFIRMED FOR HAS BEEN CANCELLED.</strong>
+                    <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
+                      <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                        <tbody>
+                          <tr>
+                            <td valign='top'>Reason:</td>
+                            <td valign='top'>Member cancelled</td>
+                          </tr>
+                          <tr>
+                            <td valign='top'>Service:</td>
+                            <td valign='top'>${service_name}</td>
+                          </tr>
+                          <tr>
+                            <td valign='top'>Date/Time:</td>
+                            <td valign='top'>${dateTime}</td>
+                          </tr>
+                          <tr>
+                            <td valign='top'>Requesting Member:</td>
+                            <td valign='top'>
+                              ${memberAddress}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <br>
+                    If you have any questions, please call 401-441-5240.<br>
+                    <br>
+                    Thanks for all you do.<br>
+                    <br>
+                    The Village Common of RI<br>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style='font-size:10px;font-style:italic;color:#666666'>
+                This email was sent in response to the use of the Village Green platform by The Village Common of RI.
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return html;
+}
+
 module.exports = {
   buildHomeHelpOpenRequestTemplate,
   buildHomeHelpConfirmedRequestTemplate,
@@ -1348,4 +1451,5 @@ module.exports = {
   buildHomeHelpMemberConfirmedTemplate,
   buildErrandsMemberConfirmedTemplate,
   buildTechSupportMemberConfirmedTemplate,
+  buildCancelledTemplate,
 };
