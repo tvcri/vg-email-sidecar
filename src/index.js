@@ -3,6 +3,7 @@ require('dotenv/config');
 const { initializePool, closePool } = require('./db');
 const { pollOnce } = require('./email-processor');
 const { getPollConfig } = require('./config');
+const { verifyCredentials } = require('./gmail');
 
 let pollInterval = null;
 
@@ -17,6 +18,12 @@ async function startSidecar() {
     });
     await initializePool();
     console.log('Database pool initialized');
+
+    console.log('Verifying Gmail credentials...');
+    const credentialsOk = verifyCredentials();
+    if (credentialsOk) {
+      console.log('Gmail credentials OK');
+    }
 
     console.log('Running initial poll...');
     await pollOnce();

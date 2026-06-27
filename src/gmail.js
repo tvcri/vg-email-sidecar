@@ -1,13 +1,14 @@
 const fs = require('fs');
 const { google } = require('googleapis');
+const { getGmailConfig } = require('./config');
 
-const TOKEN_PATH = './services-mailer-token.json';
 const FROM_ADDRESS = 'services@villagecommonri.org';
 const FROM_NAME = 'The Village Common of RI';
 
 function buildAuthClient() {
+  const { tokenPath } = getGmailConfig();
   const { client_id, client_secret, refresh_token } = JSON.parse(
-    fs.readFileSync(TOKEN_PATH, 'utf8')
+    fs.readFileSync(tokenPath, 'utf8')
   );
   const oAuth2Client = new google.auth.OAuth2(client_id, client_secret);
   oAuth2Client.setCredentials({ refresh_token });
@@ -47,6 +48,17 @@ function buildRawMessage({ to, bcc, subject, html, from }) {
     .replace(/=+$/, '');
 }
 
+function verifyCredentials() {
+  const { tokenPath } = getGmailConfig();
+  const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8')); // throws if missing/unreadable
+  const missing = ['client_id', 'client_secret', 'refresh_token'].filter(k => !token[k]);
+  if (missing.length > 0) {
+    console.warn(`Gmail token file is missing required fields: ${missing.join(', ')}`);
+    return false;
+  }
+  return true;
+}
+
 async function sendEmail({ to, bcc, subject, html }) {
   try {
     const auth = buildAuthClient();
@@ -72,4 +84,4 @@ async function sendEmail({ to, bcc, subject, html }) {
   }
 }
 
-module.exports = { sendEmail };
+module.exports = { sendEmail, verifyCredentials };
