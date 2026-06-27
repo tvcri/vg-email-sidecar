@@ -1,13 +1,19 @@
 const GET_PENDING_EVENTS = `
-  SELECT id, event_type, service_request_id, volunteer_person_id, created_at
-  FROM email_event
-  WHERE sent_at IS NULL
+  SELECT id, event_type, service_request_id, created_at
+  FROM notification_event
+  WHERE sent_at IS NULL AND failed_at IS NULL
   ORDER BY created_at ASC
 `;
 
-const MARK_EMAIL_SENT = `
-  UPDATE email_event
-  SET sent_at = NOW()
+const MARK_NOTIFICATION_SENT = `
+  UPDATE notification_event
+  SET sent_at = NOW(), recipients = ?
+  WHERE id = ?
+`;
+
+const MARK_NOTIFICATION_FAILED = `
+  UPDATE notification_event
+  SET failed_at = NOW()
   WHERE id = ?
 `;
 
@@ -82,7 +88,8 @@ const GET_VOLUNTEERS_BY_CAPABILITY = `
 
 module.exports = {
   GET_PENDING_EVENTS,
-  MARK_EMAIL_SENT,
+  MARK_NOTIFICATION_SENT,
+  MARK_NOTIFICATION_FAILED,
   GET_SERVICE_REQUEST,
   GET_VOLUNTEER,
   GET_PERSON,

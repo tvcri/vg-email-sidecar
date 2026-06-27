@@ -1,5 +1,6 @@
 const {
-  markEmailEventSent,
+  markNotificationSent,
+  markNotificationFailed,
   getServiceRequest,
   getPerson,
   getVolunteersByCapability,
@@ -92,7 +93,6 @@ function getConfirmedRequestTemplate(serviceName, volunteerName, requestData) {
   return buildRidesConfirmedRequestTemplate(volunteerName, requestData);
 }
 
-
 function getMemberConfirmedTemplate(serviceName, memberFirstName, volunteerData, requestData) {
   if (serviceName === 'Household Chores/Handy Help') {
     return buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, requestData);
@@ -111,6 +111,35 @@ function getMemberConfirmedTemplate(serviceName, memberFirstName, volunteerData,
 
 function getCapabilityFromServiceType(serviceName) {
   return SERVICE_TYPE_TO_CAPABILITY[serviceName] || null;
+}
+
+function applyTestBanner(html, intendedList) {
+  const notice = `<tr>
+            <td>
+              <div style='margin: 20px 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 11px; color: #333;'>
+                <strong style='color: #856404;'>TEST MODE:</strong> This email was sent to test recipients. Intended recipients would have been:<br><br>
+                ${intendedList}
+              </div>
+            </td>
+          </tr>`;
+  return html.replace('</table>\n      </td>\n    </tr>\n  </table>\n</body>', `${notice}</table>\n      </td>\n    </tr>\n  </table>\n</body>`);
+}
+
+function deriveRecipientsForEvent(eventType, requestData) {
+  if (eventType === 'open') {
+    return { sendToBccVolunteers: true, sendToVolunteer: false, sendToMember: false }
+  }
+  if (eventType === 'confirmed') {
+    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: true }
+  }
+  if (eventType === 'cancelled') {
+    const hasVolunteer = !!requestData.volunteer_person_id
+    return { sendToBccVolunteers: false, sendToVolunteer: hasVolunteer, sendToMember: true }
+  }
+  if (eventType === 'reminder') {
+    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: true }
+  }
+  return { sendToBccVolunteers: false, sendToVolunteer: false, sendToMember: false }
 }
 
 async function resolveRecipientsForOpenRequest(requestData) {
@@ -155,13 +184,13 @@ async function resolveRecipientsForOpenRequest(requestData) {
   };
 }
 
-async function resolveRecipientsForConfirmedRequest(event, requestData) {
+async function resolveRecipientsForConfirmedRequest(requestData) {
   const testConfig = getTestConfig();
 
-  const volunteer = await getPerson(event.volunteer_person_id);
+  const volunteer = await getPerson(requestData.volunteer_person_id);
 
   if (!volunteer || !volunteer.email) {
-    console.warn(`Volunteer person not found or has no email: ${event.volunteer_person_id}`);
+    console.warn(`Volunteer person not found or has no email: ${requestData.volunteer_person_id}`);
     return null;
   }
 
@@ -198,164 +227,117 @@ async function pollOnce() {
   const events = await getPendingEmailEvents();
 
   if (events.length === 0) {
-    console.log(`[${new Date().toISOString()}] No pending email events`);
+    console.log(`[${new Date().toISOString()}] No pending notification events`);
     return;
   }
 
-  console.log(`[${new Date().toISOString()}] Found ${events.length} pending email event(s)`);
+  console.log(`[${new Date().toISOString()}] Found ${events.length} pending notification event(s)`);
 
   let sent = 0;
   let failed = 0;
 
   for (const event of events) {
     try {
-      console.log(`[${new Date().toISOString()}] Processing service request #${event.service_request_id}`);
+      console.log(`[${new Date().toISOString()}] Processing event #${event.id} (${event.event_type}) for SR #${event.service_request_id}`);
       const requestData = await getServiceRequest(event.service_request_id);
 
       if (!requestData) {
         console.error(`Service request not found: ${event.service_request_id}`);
+        await markNotificationFailed(event.id);
         failed++;
         continue;
       }
 
-      let recipients = null;
-      let html = '';
-      let subject = '';
-      let subjectPrefix = '';
+      const routing = deriveRecipientsForEvent(event.event_type, requestData);
+      const recipientPersonIds = [];
 
-      if (event.volunteer_person_id) {
-        recipients = await resolveRecipientsForConfirmedRequest(event, requestData);
+      if (routing.sendToBccVolunteers) {
+        const recipients = await resolveRecipientsForOpenRequest(requestData);
         if (recipients) {
-          subjectPrefix = 'SR Conf';
-          subject = `${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          const subject = `SR Request #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', requestData);
+          let finalHtml = html;
+          if (recipients.isTestMode) {
+            const intendedStr = (recipients.intendedVolunteers || [])
+              .map(v => `${v.full_name} (${v.email})`).join('<br>');
+            finalHtml = applyTestBanner(html, intendedStr);
+          }
+          const result = await sendEmail({ bcc: recipients.bcc, subject, html: finalHtml });
+          if (result.success) {
+            console.log(`[${new Date().toISOString()}] Email sent: ${subject}`);
+            if (recipients.intendedVolunteers) recipientPersonIds.push(...recipients.intendedVolunteers.map(v => v.id));
+            await markNotificationSent(event.id, recipientPersonIds);
+            sent++;
+          } else {
+            console.error(`[${new Date().toISOString()}] Failed to send email: ${result.error}`);
+            await markNotificationFailed(event.id);
+            failed++;
+          }
+        } else {
+          await markNotificationFailed(event.id);
+          failed++;
+        }
 
+      } else if (routing.sendToVolunteer && event.event_type === 'confirmed') {
+        const recipients = await resolveRecipientsForConfirmedRequest(requestData);
+        if (recipients) {
+          const subject = `SR Conf #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
           const volunteerHtml = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteer.full_name), requestData);
-          const memberFirstName = getFirstName(recipients.memberName);
-          const memberHtml = getMemberConfirmedTemplate(requestData.service_name, memberFirstName, recipients.volunteer, requestData);
+          const memberHtml = getMemberConfirmedTemplate(requestData.service_name, getFirstName(recipients.memberName), recipients.volunteer, requestData);
 
-          const addTestNotice = (baseHtml, intendedList) => {
-            const notice = `<tr>
-            <td>
-              <div style='margin: 20px 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 11px; color: #333;'>
-                <strong style='color: #856404;'>TEST MODE:</strong> This email was sent to test recipients. Intended recipients would have been:<br><br>
-                ${intendedList}
-              </div>
-            </td>
-          </tr>`;
-            return baseHtml.replace('</table>\n      </td>\n    </tr>\n  </table>\n</body>', `${notice}</table>\n      </td>\n    </tr>\n  </table>\n</body>`);
-          };
-
-          // Send volunteer email
           let finalVolunteerHtml = volunteerHtml;
+          let finalMemberHtml = memberHtml;
           if (recipients.isTestMode) {
             const intendedStr = (recipients.intendedRecipients || [])
               .map(r => `${r.full_name} (${r.email})`).join('<br>');
-            finalVolunteerHtml = addTestNotice(volunteerHtml, intendedStr);
+            finalVolunteerHtml = applyTestBanner(volunteerHtml, intendedStr);
+            finalMemberHtml = applyTestBanner(memberHtml, intendedStr);
           }
-          const volunteerResult = await sendEmail({
-            to: recipients.volunteerEmail,
-            subject,
-            html: finalVolunteerHtml,
-          });
 
+          const volunteerResult = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalVolunteerHtml });
           if (volunteerResult.success) {
             console.log(`[${new Date().toISOString()}] Volunteer email sent: ${subject}`);
+            recipientPersonIds.push(recipients.volunteer.id);
           } else {
             console.error(`[${new Date().toISOString()}] Failed to send volunteer email: ${volunteerResult.error}`);
-            failed++;
           }
 
-          // Send member email (only if member has an email address)
           if (recipients.memberEmail) {
-            let finalMemberHtml = memberHtml;
-            if (recipients.isTestMode) {
-              const intendedStr = (recipients.intendedRecipients || [])
-                .map(r => `${r.full_name} (${r.email})`).join('<br>');
-              finalMemberHtml = addTestNotice(memberHtml, intendedStr);
-            }
-            const memberResult = await sendEmail({
-              to: recipients.memberEmail,
-              subject,
-              html: finalMemberHtml,
-            });
-
+            const memberResult = await sendEmail({ to: recipients.memberEmail, subject, html: finalMemberHtml });
             if (memberResult.success) {
               console.log(`[${new Date().toISOString()}] Member email sent: ${subject}`);
+              if (requestData.member_person_id) recipientPersonIds.push(Number(requestData.member_person_id));
             } else {
               console.error(`[${new Date().toISOString()}] Failed to send member email: ${memberResult.error}`);
-              failed++;
             }
           }
 
           if (volunteerResult.success) {
-            if (!recipients.isTestMode) {
-              await markEmailEventSent(event.id);
-            }
+            await markNotificationSent(event.id, recipientPersonIds);
             sent++;
+          } else {
+            await markNotificationFailed(event.id);
+            failed++;
           }
         } else {
+          await markNotificationFailed(event.id);
           failed++;
         }
+
+      } else if (event.event_type === 'cancelled' || event.event_type === 'reminder') {
+        console.warn(`[${new Date().toISOString()}] No template yet for event_type=${event.event_type}, marking failed`);
+        await markNotificationFailed(event.id);
+        failed++;
+
       } else {
-        recipients = await resolveRecipientsForOpenRequest(requestData);
-        if (recipients) {
-          html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', requestData);
-          subjectPrefix = 'SR Request';
-        }
-      }
-
-      if (!event.volunteer_person_id && recipients && html) {
-        // subject = `The Village Common of RI - ${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
-        subject = `${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
-
-        let finalHtml = html;
-        if (recipients.isTestMode) {
-          let intendedRecipientsList = '';
-          if (recipients.intendedRecipients && recipients.intendedRecipients.length > 0) {
-            intendedRecipientsList = recipients.intendedRecipients
-              .map(r => `${r.full_name} (${r.email})`)
-              .join('<br>');
-          } else if (recipients.intendedVolunteers && recipients.intendedVolunteers.length > 0) {
-            intendedRecipientsList = recipients.intendedVolunteers
-              .map(v => `${v.full_name} (${v.email})`)
-              .join('<br>');
-          } else if (recipients.intendedVolunteer) {
-            intendedRecipientsList = `${recipients.intendedVolunteer.full_name} (${recipients.intendedVolunteer.email})`;
-          }
-
-          const testNotice = `<tr>
-            <td>
-              <div style='margin: 20px 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 11px; color: #333;'>
-                <strong style='color: #856404;'>TEST MODE:</strong> This email was sent to test recipients. Intended recipients would have been:<br><br>
-                ${intendedRecipientsList}
-              </div>
-            </td>
-          </tr>`;
-
-          finalHtml = html.replace('</table>\n      </td>\n    </tr>\n  </table>\n</body>', `${testNotice}</table>\n      </td>\n    </tr>\n  </table>\n</body>`);
-        }
-
-        const result = await sendEmail({
-          bcc: recipients.bcc,
-          subject,
-          html: finalHtml,
-        });
-
-        if (result.success) {
-          console.log(`[${new Date().toISOString()}] Email sent: ${subject}`);
-          if (!recipients.isTestMode) {
-            await markEmailEventSent(event.id);
-          }
-          sent++;
-        } else {
-          console.error(`[${new Date().toISOString()}] Failed to send email: ${result.error}`);
-          failed++;
-        }
-      } else if (!event.volunteer_person_id) {
+        console.warn(`[${new Date().toISOString()}] Unknown event_type=${event.event_type}`);
+        await markNotificationFailed(event.id);
         failed++;
       }
+
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Error processing event ${event.id}:`, error.message);
+      await markNotificationFailed(event.id);
       failed++;
     }
   }
@@ -363,4 +345,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce };
+module.exports = { pollOnce, deriveRecipientsForEvent };

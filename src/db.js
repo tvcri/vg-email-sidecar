@@ -32,10 +32,19 @@ async function getPendingEmailEvents() {
   }
 }
 
-async function markEmailEventSent(eventId) {
+async function markNotificationSent(id, recipientPersonIds) {
   const conn = await createConnection();
   try {
-    await conn.query(queries.MARK_EMAIL_SENT, [eventId]);
+    await conn.query(queries.MARK_NOTIFICATION_SENT, [JSON.stringify(recipientPersonIds), id]);
+  } finally {
+    await conn.end();
+  }
+}
+
+async function markNotificationFailed(id) {
+  const conn = await createConnection();
+  try {
+    await conn.query(queries.MARK_NOTIFICATION_FAILED, [id]);
   } finally {
     await conn.end();
   }
@@ -88,7 +97,8 @@ async function closePool() {
 module.exports = {
   initializePool,
   getPendingEmailEvents,
-  markEmailEventSent,
+  markNotificationSent,
+  markNotificationFailed,
   getServiceRequest,
   getPerson,
   getVolunteersByCapability,
