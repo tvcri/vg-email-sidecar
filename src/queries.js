@@ -20,6 +20,7 @@ const MARK_NOTIFICATION_FAILED = `
 const GET_SERVICE_REQUEST = `
   SELECT
     sr.id,
+    sr.request_number,
     sr.service_name,
     sr.village_id,
     sr.member_person_id,

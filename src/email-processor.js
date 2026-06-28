@@ -287,10 +287,15 @@ async function pollOnce() {
       const routing = deriveRecipientsForEvent(event.event_type, requestData);
       const recipientPersonIds = [];
 
+      // Legacy service requests carry a request_number from the old system that
+      // volunteers recognize; show it in the subject when present, otherwise the
+      // new database id.
+      const subjectNumber = requestData.request_number || requestData.id;
+
       if (routing.sendToBccVolunteers) {
         const recipients = await resolveRecipientsForOpenRequest(requestData);
         if (recipients) {
-          const subject = `SR Request #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          const subject = `SR Request #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
           const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', requestData);
           let finalHtml = html;
           if (recipients.isTestMode) {
@@ -317,7 +322,7 @@ async function pollOnce() {
       } else if (routing.sendToVolunteer && event.event_type === 'confirmed') {
         const recipients = await resolveRecipientsForConfirmedRequest(requestData);
         if (recipients) {
-          const subject = `SR Conf #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          const subject = `SR Conf #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
           const volunteerHtml = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteer.full_name), requestData);
           const memberHtml = getMemberConfirmedTemplate(requestData.service_name, getFirstName(recipients.memberName), recipients.volunteer, requestData);
 
@@ -371,7 +376,7 @@ async function pollOnce() {
         } else {
           const recipients = await resolveRecipientsForCancelledRequest(requestData);
           if (recipients) {
-            const subject = `SR Cancel #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+            const subject = `SR Cancel #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
             const html = buildCancelledTemplate(getFirstName(recipients.volunteer.full_name), requestData);
             let finalHtml = html;
             if (recipients.isTestMode) {
