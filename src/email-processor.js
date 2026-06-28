@@ -172,6 +172,10 @@ async function resolveRecipientsForOpenRequest(requestData) {
     return {
       bcc: testConfig.overrideRecipients.join(', '),
       volunteerNames: volunteers.map(v => v.full_name),
+      // resolvedVolunteers is the real capability-matched pool, recorded in
+      // recipients regardless of test mode. intendedVolunteers drives the
+      // test-mode banner only.
+      resolvedVolunteers: volunteers,
       intendedVolunteers: volunteers,
       isTestMode: true,
     };
@@ -180,6 +184,7 @@ async function resolveRecipientsForOpenRequest(requestData) {
   return {
     bcc: bccList,
     volunteerNames: volunteers.map(v => v.full_name),
+    resolvedVolunteers: volunteers,
     intendedVolunteers: null,
     isTestMode: false,
   };
@@ -296,7 +301,7 @@ async function pollOnce() {
           const result = await sendEmail({ bcc: recipients.bcc, subject, html: finalHtml });
           if (result.success) {
             console.log(`[${new Date().toISOString()}] Email sent: ${subject}`);
-            if (recipients.intendedVolunteers) recipientPersonIds.push(...recipients.intendedVolunteers.map(v => v.id));
+            recipientPersonIds.push(...recipients.resolvedVolunteers.map(v => v.id));
             await markNotificationSent(event.id, recipientPersonIds);
             sent++;
           } else {
