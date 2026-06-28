@@ -218,6 +218,11 @@ async function pollOnce() {
         continue;
       }
 
+      // Legacy service requests carry a request_number from the old system that
+      // volunteers recognize; show it in the subject when present, otherwise the
+      // new database id.
+      const subjectNumber = requestData.request_number || requestData.id;
+
       let recipients = null;
       let html = '';
       let subject = '';
@@ -227,7 +232,7 @@ async function pollOnce() {
         recipients = await resolveRecipientsForConfirmedRequest(event, requestData);
         if (recipients) {
           subjectPrefix = 'SR Conf';
-          subject = `${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          subject = `${subjectPrefix} #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
 
           const volunteerHtml = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteer.full_name), requestData);
           const memberFirstName = getFirstName(recipients.memberName);
@@ -306,7 +311,7 @@ async function pollOnce() {
 
       if (!event.volunteer_person_id && recipients && html) {
         // subject = `The Village Common of RI - ${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
-        subject = `${subjectPrefix} #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+        subject = `${subjectPrefix} #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
 
         let finalHtml = html;
         if (recipients.isTestMode) {
