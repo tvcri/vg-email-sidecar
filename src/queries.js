@@ -54,7 +54,7 @@ const GET_SERVICE_REQUEST = `
     m.service_notes
   FROM service_request sr
   LEFT JOIN person mp ON sr.member_person_id = mp.id
-  LEFT JOIN member m ON mp.id = m.person_id
+  LEFT JOIN active_member m ON mp.id = m.person_id
   WHERE sr.id = ?
 `;
 
@@ -64,7 +64,7 @@ const GET_VOLUNTEER = `
     v.person_id,
     p.full_name,
     p.email
-  FROM volunteer v
+  FROM active_volunteer v
   JOIN person p ON v.person_id = p.id
   WHERE v.id = ?
 `;
@@ -80,7 +80,7 @@ const GET_VOLUNTEERS_BY_CAPABILITY = `
     p.id,
     p.full_name,
     p.email
-  FROM volunteer v
+  FROM active_volunteer v
   JOIN person p ON v.person_id = p.id
   JOIN volunteer_capability vc ON v.id = vc.volunteer_id
   JOIN capability c ON vc.capability_id = c.id
