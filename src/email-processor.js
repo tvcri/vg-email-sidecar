@@ -211,7 +211,11 @@ async function resolveRecipientsForConfirmedRequest(requestData) {
     console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
     return {
       volunteerEmail: testConfig.overrideRecipients.join(', '),
-      memberEmail: testConfig.overrideRecipients.join(', '),
+      // Only redirect a member send to the test recipients when the member
+      // actually has an email in prod; otherwise keep it null so test mode
+      // mirrors prod (which skips the member send) instead of fabricating an
+      // extra email and recording a member recipient prod would never notify.
+      memberEmail: memberEmail ? testConfig.overrideRecipients.join(', ') : null,
       volunteer,
       memberName: requestData.member_name,
       intendedRecipients,
