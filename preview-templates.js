@@ -13,6 +13,7 @@ const {
   buildHomeHelpMemberConfirmedTemplate,
   buildErrandsMemberConfirmedTemplate,
   buildTechSupportMemberConfirmedTemplate,
+  buildCancelledTemplate,
 } = require('./src/templates');
 
 const volunteerData = {
@@ -123,6 +124,10 @@ const renders = [
   ['errands-member.html',    buildErrandsMemberConfirmedTemplate('Zelda', volunteerData, errandsRequest)],
   ['techsup-volunteer.html', buildTechSupportConfirmedRequestTemplate('Joanne', techRequest)],
   ['techsup-member.html',    buildTechSupportMemberConfirmedTemplate('Zelda', volunteerData, techRequest)],
+  // Cancellation notice goes to the confirmed volunteer. Rides show date + pickup
+  // time; the other (flexible) service types show the date only.
+  ['cancel-rides.html',      buildCancelledTemplate('Joanne', ridesRequest)],
+  ['cancel-errands.html',    buildCancelledTemplate('Joanne', errandsRequest)],
 ];
 
 for (const [filename, html] of renders) {
