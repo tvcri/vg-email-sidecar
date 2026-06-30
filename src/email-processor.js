@@ -138,8 +138,11 @@ function buildSubject(baseSubject, isTestMode) {
   return isTestMode ? `[TEST] ${baseSubject}` : baseSubject;
 }
 
-async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, isTestMode, getPriorOpenCountFn }) {
-  const priorCount = await getPriorOpenCountFn(serviceRequestId);
+async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, requestNumber, isTestMode, getPriorOpenCountFn }) {
+  const dbCount = await getPriorOpenCountFn(serviceRequestId);
+  // Legacy SRs (non-null request_number) had their first notification in the old system;
+  // add 1 so the ordinal accounts for that presumed-sent original.
+  const priorCount = dbCount + (requestNumber ? 1 : 0);
   const subjectOrdinal = getSubjectOrdinal(priorCount);
   const bodyPrefix = getBodyOrdinalPrefix(priorCount);
 
@@ -348,6 +351,7 @@ async function pollOnce() {
             startAt: requestData.start_at,
             description: requestData.description,
             serviceRequestId: event.service_request_id,
+            requestNumber: requestData.request_number,
             isTestMode: recipients.isTestMode,
             getPriorOpenCountFn: getPriorOpenCount,
           });

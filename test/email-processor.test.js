@@ -149,3 +149,33 @@ test('buildOpenSubjectAndDescription: second send, test mode', async () => {
   assert.equal(result.subject, '[TEST] 2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
   assert.equal(result.description, 'SECOND REQUEST Member needs a ride.')
 })
+
+test('buildOpenSubjectAndDescription: legacy SR first send treated as 2nd request', async () => {
+  const result = await buildOpenSubjectAndDescription({
+    subjectNumber: '27143',
+    memberName: 'Mary Lou Foley',
+    startAt: '2026-06-22T14:00:00Z',
+    description: 'Member needs a ride.',
+    serviceRequestId: 1,
+    requestNumber: '27143',
+    isTestMode: false,
+    getPriorOpenCountFn: async () => 0,
+  })
+  assert.equal(result.subject, '2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'SECOND REQUEST Member needs a ride.')
+})
+
+test('buildOpenSubjectAndDescription: legacy SR second send treated as 3rd request', async () => {
+  const result = await buildOpenSubjectAndDescription({
+    subjectNumber: '27143',
+    memberName: 'Mary Lou Foley',
+    startAt: '2026-06-22T14:00:00Z',
+    description: 'Member needs a ride.',
+    serviceRequestId: 1,
+    requestNumber: '27143',
+    isTestMode: false,
+    getPriorOpenCountFn: async () => 1,
+  })
+  assert.equal(result.subject, '3rd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'THIRD REQUEST Member needs a ride.')
+})
