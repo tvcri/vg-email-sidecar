@@ -5,6 +5,7 @@ const {
   getPerson,
   getVolunteersByCapability,
   getPendingEmailEvents,
+  getPriorOpenCount,
 } = require('./db');
 const { sendEmail } = require('./gmail');
 const { getTestConfig } = require('./config');
@@ -112,6 +113,53 @@ function getMemberConfirmedTemplate(serviceName, memberFirstName, volunteerData,
 
 function getCapabilityFromServiceType(serviceName) {
   return SERVICE_TYPE_TO_CAPABILITY[serviceName] || null;
+}
+
+const SUBJECT_ORDINALS = [null, '2nd', '3rd', '4th'];
+const BODY_ORDINALS = [null, 'SECOND REQUEST', 'THIRD REQUEST', 'FOURTH REQUEST'];
+
+function getSubjectOrdinal(priorCount) {
+  if (priorCount >= SUBJECT_ORDINALS.length) {
+    console.warn(`Unexpected prior open count: ${priorCount}; no subject ordinal applied`);
+    return null;
+  }
+  return SUBJECT_ORDINALS[priorCount];
+}
+
+function getBodyOrdinalPrefix(priorCount) {
+  if (priorCount >= BODY_ORDINALS.length) {
+    console.warn(`Unexpected prior open count: ${priorCount}; no body ordinal applied`);
+    return null;
+  }
+  return BODY_ORDINALS[priorCount];
+}
+
+function buildSubject(baseSubject, isTestMode) {
+  return isTestMode ? `[TEST] ${baseSubject}` : baseSubject;
+}
+
+async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, requestNumber, isTestMode, getPriorOpenCountFn }) {
+  const dbCount = await getPriorOpenCountFn(serviceRequestId);
+  // Legacy SRs (non-null request_number) had their first notification in the old system;
+  // add 1 so the ordinal accounts for that presumed-sent original.
+  const priorCount = dbCount + (requestNumber ? 1 : 0);
+
+  if (priorCount >= SUBJECT_ORDINALS.length) {
+    console.warn(`Unexpected prior open count: ${priorCount} for SR ${serviceRequestId}; no ordinal prefix applied`);
+  }
+
+  const subjectOrdinal = SUBJECT_ORDINALS[priorCount] ?? null;
+  const bodyPrefix = BODY_ORDINALS[priorCount] ?? null;
+
+  const dateStr = formatDateForSubject(startAt);
+  const baseSubject = `${subjectOrdinal ? subjectOrdinal + ' ' : ''}SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`;
+  const subject = buildSubject(baseSubject, isTestMode);
+
+  const finalDescription = bodyPrefix
+    ? `${bodyPrefix} ${description ?? ''}`
+    : description;
+
+  return { subject, description: finalDescription };
 }
 
 function applyTestBanner(html, intendedList) {
@@ -299,8 +347,20 @@ async function pollOnce() {
       if (routing.sendToBccVolunteers) {
         const recipients = await resolveRecipientsForOpenRequest(requestData);
         if (recipients) {
-          const subject = `SR Request #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
-          const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', requestData);
+          const { subject, description: openDescription } = await buildOpenSubjectAndDescription({
+            subjectNumber,
+            memberName: requestData.member_name,
+            startAt: requestData.start_at,
+            description: requestData.description,
+            serviceRequestId: event.service_request_id,
+            requestNumber: requestData.request_number,
+            isTestMode: recipients.isTestMode,
+            getPriorOpenCountFn: getPriorOpenCount,
+          });
+          const openRequestData = openDescription !== requestData.description
+            ? { ...requestData, description: openDescription }
+            : requestData;
+          const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', openRequestData);
           let finalHtml = html;
           if (recipients.isTestMode) {
             const intendedStr = (recipients.intendedVolunteers || [])
@@ -326,7 +386,8 @@ async function pollOnce() {
       } else if (routing.sendToVolunteer && event.event_type === 'confirmed') {
         const recipients = await resolveRecipientsForConfirmedRequest(requestData);
         if (recipients) {
-          const subject = `SR Conf #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          const baseSubject = `SR Conf #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          const subject = buildSubject(baseSubject, recipients.isTestMode);
           const volunteerHtml = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteer.full_name), requestData);
           const memberHtml = getMemberConfirmedTemplate(requestData.service_name, getFirstName(recipients.memberName), recipients.volunteer, requestData);
 
@@ -380,7 +441,8 @@ async function pollOnce() {
         } else {
           const recipients = await resolveRecipientsForCancelledRequest(requestData);
           if (recipients) {
-            const subject = `SR Cancel #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+            const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+            const subject = buildSubject(baseSubject, recipients.isTestMode);
             const html = buildCancelledTemplate(getFirstName(recipients.volunteer.full_name), requestData);
             let finalHtml = html;
             if (recipients.isTestMode) {
@@ -426,4 +488,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce, deriveRecipientsForEvent };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription };

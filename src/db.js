@@ -16,78 +16,72 @@ async function createConnection() {
   return mysql.createConnection(getDbConfig());
 }
 
-async function initializePool() {
+async function withConnection(fn) {
   const conn = await createConnection();
-  await conn.end();
+  try {
+    return await fn(conn);
+  } finally {
+    await conn.end();
+  }
+}
+
+async function initializePool() {
+  await withConnection(() => {});
   return true;
 }
 
 async function getPendingEmailEvents() {
-  const conn = await createConnection();
-  try {
+  return withConnection(async (conn) => {
     const [rows] = await conn.query(queries.GET_PENDING_EVENTS);
     return rows;
-  } finally {
-    await conn.end();
-  }
+  });
 }
 
 async function markNotificationSent(id, recipientPersonIds) {
-  const conn = await createConnection();
-  try {
-    await conn.query(queries.MARK_NOTIFICATION_SENT, [JSON.stringify(recipientPersonIds), id]);
-  } finally {
-    await conn.end();
-  }
+  return withConnection((conn) =>
+    conn.query(queries.MARK_NOTIFICATION_SENT, [JSON.stringify(recipientPersonIds), id])
+  );
 }
 
 async function markNotificationFailed(id) {
-  const conn = await createConnection();
-  try {
-    await conn.query(queries.MARK_NOTIFICATION_FAILED, [id]);
-  } finally {
-    await conn.end();
-  }
+  return withConnection((conn) =>
+    conn.query(queries.MARK_NOTIFICATION_FAILED, [id])
+  );
 }
 
 async function getServiceRequest(serviceRequestId) {
-  const conn = await createConnection();
-  try {
+  return withConnection(async (conn) => {
     const [rows] = await conn.query(queries.GET_SERVICE_REQUEST, [serviceRequestId]);
     return rows[0] || null;
-  } finally {
-    await conn.end();
-  }
+  });
 }
 
 async function getVolunteer(volunteerId) {
-  const conn = await createConnection();
-  try {
+  return withConnection(async (conn) => {
     const [rows] = await conn.query(queries.GET_VOLUNTEER, [volunteerId]);
     return rows[0] || null;
-  } finally {
-    await conn.end();
-  }
+  });
 }
 
 async function getPerson(personId) {
-  const conn = await createConnection();
-  try {
+  return withConnection(async (conn) => {
     const [rows] = await conn.query(queries.GET_PERSON, [personId]);
     return rows[0] || null;
-  } finally {
-    await conn.end();
-  }
+  });
 }
 
 async function getVolunteersByCapability(villageId, capabilityName) {
-  const conn = await createConnection();
-  try {
+  return withConnection(async (conn) => {
     const [rows] = await conn.query(queries.GET_VOLUNTEERS_BY_CAPABILITY, [villageId, capabilityName]);
     return rows;
-  } finally {
-    await conn.end();
-  }
+  });
+}
+
+async function getPriorOpenCount(serviceRequestId) {
+  return withConnection(async (conn) => {
+    const [rows] = await conn.query(queries.GET_PRIOR_OPEN_COUNT, [serviceRequestId]);
+    return rows[0].prior_count;
+  });
 }
 
 async function closePool() {
@@ -102,5 +96,6 @@ module.exports = {
   getServiceRequest,
   getPerson,
   getVolunteersByCapability,
+  getPriorOpenCount,
   closePool,
 };

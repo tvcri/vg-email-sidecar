@@ -87,6 +87,14 @@ const GET_VOLUNTEERS_BY_CAPABILITY = `
   WHERE p.village_id = ? AND c.name = ?
 `;
 
+const GET_PRIOR_OPEN_COUNT = `
+  SELECT COUNT(*) AS prior_count
+  FROM notification_event
+  WHERE service_request_id = ?
+    AND event_type = 'open'
+    AND sent_at IS NOT NULL
+`;
+
 module.exports = {
   GET_PENDING_EVENTS,
   MARK_NOTIFICATION_SENT,
@@ -95,4 +103,5 @@ module.exports = {
   GET_VOLUNTEER,
   GET_PERSON,
   GET_VOLUNTEERS_BY_CAPABILITY,
+  GET_PRIOR_OPEN_COUNT,
 };
