@@ -1,6 +1,6 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const { deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject } = require('../src/email-processor.js')
+const { deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription } = require('../src/email-processor.js')
 
 test('open event sends BCC to volunteers, not to member or specific volunteer', () => {
   const result = deriveRecipientsForEvent('open', { volunteer_person_id: null })
@@ -91,4 +91,61 @@ test('buildSubject prepends [TEST] before ordinal in test mode', () => {
     buildSubject('2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026', true),
     '[TEST] 2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026'
   )
+})
+
+// buildOpenSubjectAndDescription
+test('buildOpenSubjectAndDescription: first send, non-test mode', async () => {
+  const result = await buildOpenSubjectAndDescription({
+    subjectNumber: '27143',
+    memberName: 'Mary Lou Foley',
+    startAt: '2026-06-22T14:00:00Z',
+    description: 'Member needs a ride.',
+    serviceRequestId: 1,
+    isTestMode: false,
+    getPriorOpenCountFn: async () => 0,
+  })
+  assert.equal(result.subject, 'SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'Member needs a ride.')
+})
+
+test('buildOpenSubjectAndDescription: first send, test mode', async () => {
+  const result = await buildOpenSubjectAndDescription({
+    subjectNumber: '27143',
+    memberName: 'Mary Lou Foley',
+    startAt: '2026-06-22T14:00:00Z',
+    description: 'Member needs a ride.',
+    serviceRequestId: 1,
+    isTestMode: true,
+    getPriorOpenCountFn: async () => 0,
+  })
+  assert.equal(result.subject, '[TEST] SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'Member needs a ride.')
+})
+
+test('buildOpenSubjectAndDescription: second send, non-test mode', async () => {
+  const result = await buildOpenSubjectAndDescription({
+    subjectNumber: '27143',
+    memberName: 'Mary Lou Foley',
+    startAt: '2026-06-22T14:00:00Z',
+    description: 'Member needs a ride.',
+    serviceRequestId: 1,
+    isTestMode: false,
+    getPriorOpenCountFn: async () => 1,
+  })
+  assert.equal(result.subject, '2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'SECOND REQUEST Member needs a ride.')
+})
+
+test('buildOpenSubjectAndDescription: second send, test mode', async () => {
+  const result = await buildOpenSubjectAndDescription({
+    subjectNumber: '27143',
+    memberName: 'Mary Lou Foley',
+    startAt: '2026-06-22T14:00:00Z',
+    description: 'Member needs a ride.',
+    serviceRequestId: 1,
+    isTestMode: true,
+    getPriorOpenCountFn: async () => 1,
+  })
+  assert.equal(result.subject, '[TEST] 2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'SECOND REQUEST Member needs a ride.')
 })

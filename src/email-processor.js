@@ -5,6 +5,7 @@ const {
   getPerson,
   getVolunteersByCapability,
   getPendingEmailEvents,
+  getPriorOpenCount,
 } = require('./db');
 const { sendEmail } = require('./gmail');
 const { getTestConfig } = require('./config');
@@ -135,6 +136,25 @@ function getBodyOrdinalPrefix(priorCount) {
 
 function buildSubject(baseSubject, isTestMode) {
   return isTestMode ? `[TEST] ${baseSubject}` : baseSubject;
+}
+
+async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, isTestMode, getPriorOpenCountFn }) {
+  const priorCount = await getPriorOpenCountFn(serviceRequestId);
+  const subjectOrdinal = getSubjectOrdinal(priorCount);
+  const bodyPrefix = getBodyOrdinalPrefix(priorCount);
+
+  const dateStr = formatDateForSubject(startAt);
+  const baseSubject = subjectOrdinal
+    ? `${subjectOrdinal} SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`
+    : `SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`;
+
+  const subject = buildSubject(baseSubject, isTestMode);
+
+  const finalDescription = bodyPrefix
+    ? `${bodyPrefix} ${description}`
+    : description;
+
+  return { subject, description: finalDescription };
 }
 
 function applyTestBanner(html, intendedList) {
@@ -322,9 +342,19 @@ async function pollOnce() {
       if (routing.sendToBccVolunteers) {
         const recipients = await resolveRecipientsForOpenRequest(requestData);
         if (recipients) {
-          const baseSubject = `SR Request #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
-          const subject = buildSubject(baseSubject, recipients.isTestMode);
-          const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', requestData);
+          const { subject, description: openDescription } = await buildOpenSubjectAndDescription({
+            subjectNumber,
+            memberName: requestData.member_name,
+            startAt: requestData.start_at,
+            description: requestData.description,
+            serviceRequestId: event.service_request_id,
+            isTestMode: recipients.isTestMode,
+            getPriorOpenCountFn: getPriorOpenCount,
+          });
+          const openRequestData = openDescription !== requestData.description
+            ? { ...requestData, description: openDescription }
+            : requestData;
+          const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', openRequestData);
           let finalHtml = html;
           if (recipients.isTestMode) {
             const intendedStr = (recipients.intendedVolunteers || [])
@@ -452,4 +482,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription };
