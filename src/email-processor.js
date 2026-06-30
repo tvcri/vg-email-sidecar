@@ -143,18 +143,20 @@ async function buildOpenSubjectAndDescription({ subjectNumber, memberName, start
   // Legacy SRs (non-null request_number) had their first notification in the old system;
   // add 1 so the ordinal accounts for that presumed-sent original.
   const priorCount = dbCount + (requestNumber ? 1 : 0);
-  const subjectOrdinal = getSubjectOrdinal(priorCount);
-  const bodyPrefix = getBodyOrdinalPrefix(priorCount);
+
+  if (priorCount >= SUBJECT_ORDINALS.length) {
+    console.warn(`Unexpected prior open count: ${priorCount} for SR ${serviceRequestId}; no ordinal prefix applied`);
+  }
+
+  const subjectOrdinal = SUBJECT_ORDINALS[priorCount] ?? null;
+  const bodyPrefix = BODY_ORDINALS[priorCount] ?? null;
 
   const dateStr = formatDateForSubject(startAt);
-  const baseSubject = subjectOrdinal
-    ? `${subjectOrdinal} SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`
-    : `SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`;
-
+  const baseSubject = `${subjectOrdinal ? subjectOrdinal + ' ' : ''}SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`;
   const subject = buildSubject(baseSubject, isTestMode);
 
   const finalDescription = bodyPrefix
-    ? `${bodyPrefix} ${description}`
+    ? `${bodyPrefix} ${description ?? ''}`
     : description;
 
   return { subject, description: finalDescription };
