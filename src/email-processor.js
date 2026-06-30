@@ -114,6 +114,29 @@ function getCapabilityFromServiceType(serviceName) {
   return SERVICE_TYPE_TO_CAPABILITY[serviceName] || null;
 }
 
+const SUBJECT_ORDINALS = [null, '2nd', '3rd', '4th'];
+const BODY_ORDINALS = [null, 'SECOND REQUEST', 'THIRD REQUEST', 'FOURTH REQUEST'];
+
+function getSubjectOrdinal(priorCount) {
+  if (priorCount >= SUBJECT_ORDINALS.length) {
+    console.warn(`Unexpected prior open count: ${priorCount}; no subject ordinal applied`);
+    return null;
+  }
+  return SUBJECT_ORDINALS[priorCount];
+}
+
+function getBodyOrdinalPrefix(priorCount) {
+  if (priorCount >= BODY_ORDINALS.length) {
+    console.warn(`Unexpected prior open count: ${priorCount}; no body ordinal applied`);
+    return null;
+  }
+  return BODY_ORDINALS[priorCount];
+}
+
+function buildSubject(baseSubject, isTestMode) {
+  return isTestMode ? `[TEST] ${baseSubject}` : baseSubject;
+}
+
 function applyTestBanner(html, intendedList) {
   const notice = `<tr>
             <td>
@@ -426,4 +449,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce, deriveRecipientsForEvent };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject };
