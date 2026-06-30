@@ -90,6 +90,16 @@ async function getVolunteersByCapability(villageId, capabilityName) {
   }
 }
 
+async function getPriorOpenCount(serviceRequestId) {
+  const conn = await createConnection();
+  try {
+    const [rows] = await conn.query(queries.GET_PRIOR_OPEN_COUNT, [serviceRequestId]);
+    return rows[0].prior_count;
+  } finally {
+    await conn.end();
+  }
+}
+
 async function closePool() {
   // No-op for simple connection approach
 }
@@ -102,5 +112,6 @@ module.exports = {
   getServiceRequest,
   getPerson,
   getVolunteersByCapability,
+  getPriorOpenCount,
   closePool,
 };
