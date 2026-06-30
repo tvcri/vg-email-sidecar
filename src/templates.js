@@ -1343,6 +1343,7 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
 function buildCancelledTemplate(recipientFirstName, requestData) {
   const {
     service_name,
+    status,
     member_name,
     member_address,
     member_city,
@@ -1391,7 +1392,7 @@ function buildCancelledTemplate(recipientFirstName, requestData) {
                         <tbody>
                           <tr>
                             <td valign='top'>Reason:</td>
-                            <td valign='top'>Member cancelled</td>
+                            <td valign='top'>${status || 'Cancelled'}</td>
                           </tr>
                           <tr>
                             <td valign='top'>Service:</td>
