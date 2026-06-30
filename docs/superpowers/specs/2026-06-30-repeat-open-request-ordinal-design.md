@@ -1,16 +1,20 @@
-# Design: Repeat Open Request Ordinal Subject/Body
+# Design: Repeat Open Request Ordinal + Test Mode Subject Prefix
 
 **Date:** 2026-06-30
 
 ## Overview
 
-When a volunteer solicitation email (`open` event) is sent for a service request that has already been solicited before, the subject line and body description should reflect that this is a repeat request — e.g. "2nd SR Request #..." and "SECOND REQUEST Member needs help with...".
+Two related subject-line enhancements:
+
+1. When a volunteer solicitation email (`open` event) is sent for a service request that has already been solicited before, the subject line and body description reflect that this is a repeat request — e.g. `"2nd SR Request #..."` and `"SECOND REQUEST Member needs help with..."`.
+
+2. When `TEST_RECIPIENTS` is set (test mode), every outgoing email subject is prefixed with `[TEST]`. For a 2nd-request test-mode send, `[TEST]` comes first: `"[TEST] 2nd SR Request #..."`.
 
 ## Scope
 
-- Applies only to `open` event type (volunteer BCC emails).
-- `confirmed`, `cancelled`, and `reminder` events are unaffected.
-- First send (no prior successful `open` notifications) retains the current subject and body unchanged.
+- **Ordinal prefix:** Applies only to `open` event type (volunteer BCC emails), subject line and description body.
+- **`[TEST]` prefix:** Applies to all event types (`open`, `confirmed`, `cancelled`, `reminder`), subject line only.
+- First send (`priorCount === 0`) retains the current subject and body format unchanged (aside from `[TEST]` when in test mode).
 
 ## Data Layer
 
@@ -26,13 +30,13 @@ WHERE service_request_id = ?
   AND sent_at IS NOT NULL
 ```
 
-Counts successfully sent `open` events for the same service request. Failed events (`failed_at IS NOT NULL`, or unsent) are excluded.
+Counts successfully sent `open` events for the same service request. Failed events and unsent events are excluded.
 
 ### New db function — `getPriorOpenCount(serviceRequestId)`
 
 Added to `src/db.js`. Returns the integer count (extracts `prior_count` from the single result row). Exported and available for injection in tests.
 
-## Ordinal Logic
+## Ordinal Logic (open events only)
 
 Two pure helper functions added to `src/email-processor.js`:
 
@@ -58,23 +62,42 @@ Two pure helper functions added to `src/email-processor.js`:
 
 Both functions are exported for unit testing.
 
-## Subject and Body Assembly
+## Subject Assembly
 
-In the `sendToBccVolunteers` branch of `pollOnce` in `src/email-processor.js`:
+A new pure helper `buildSubject(baseSubject, isTestMode)` in `src/email-processor.js` handles the `[TEST]` prefix universally:
 
-1. Call `getPriorOpenCount(event.service_request_id)` → `priorCount`
-2. **Subject:** When `priorCount > 0` and `getSubjectOrdinal(priorCount)` is non-null, prefix the subject: `"${ordinal} SR Request #${subjectNumber}-For ${member}-Service Date: ${date}"`. When `priorCount === 0`, subject is unchanged.
-3. **Body description:** When `priorCount > 0` and `getBodyOrdinalPrefix(priorCount)` is non-null, prepend the body prefix to `requestData.description` on a local copy of `requestData` before passing to the template builder. No changes to any template function.
+```
+buildSubject("SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026", false)
+→ "SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026"
+
+buildSubject("SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026", true)
+→ "[TEST] SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026"
+
+buildSubject("2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026", true)
+→ "[TEST] 2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026"
+```
+
+All event-type branches in `pollOnce` pass their subject string through `buildSubject` with the resolved `isTestMode` flag from the relevant `resolveRecipients*` return value.
+
+### Open event subject and description assembly
+
+A helper `buildOpenSubjectAndDescription` handles the ordinal-aware subject and description for `open` events:
+
+- Calls `getPriorOpenCountFn(serviceRequestId)` (injected for testability)
+- Derives ordinal strings via `getSubjectOrdinal` / `getBodyOrdinalPrefix`
+- Builds the base subject string, then passes it through `buildSubject(base, isTestMode)`
+- Returns `{ subject, description }` where `description` has the body prefix prepended when applicable
 
 ## No Template Changes
 
-All existing template builder functions (`buildHomeHelpOpenRequestTemplate`, `buildRidesOpenRequestTemplate`, etc.) are unchanged. They receive a `requestData` object whose `description` field already contains the prefix when appropriate.
+All existing template builder functions are unchanged. They receive a `requestData` object whose `description` field already contains the prefix when appropriate.
 
 ## Error Handling
 
-- If `getPriorOpenCount` throws, the error propagates to the existing `try/catch` in `pollOnce`, which marks the event failed and logs the error — consistent with the existing failure handling pattern.
+- If `getPriorOpenCount` throws, the error propagates to the existing `try/catch` in `pollOnce`, which marks the event failed — consistent with existing behavior.
 
 ## Testing
 
-- Unit tests for `getSubjectOrdinal` and `getBodyOrdinalPrefix` covering all cases (0, 1, 2, 3, >=4).
-- Integration: existing tests for `sendToBccVolunteers` path should mock `getPriorOpenCount` returning 0 to confirm no regression; add cases returning 1 and 2 to verify subject and description mutation.
+- Unit tests for `getSubjectOrdinal`, `getBodyOrdinalPrefix`, and `buildSubject` covering all cases.
+- Integration tests for `buildOpenSubjectAndDescription` covering: first send non-test, first send test-mode, second send non-test, second send test-mode.
+- For all other event branches: verify `buildSubject` is called with `isTestMode` by checking the subject returned includes `[TEST]` when test mode is active.

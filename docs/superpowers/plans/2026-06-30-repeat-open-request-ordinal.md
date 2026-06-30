@@ -1,21 +1,24 @@
-# Repeat Open Request Ordinal Implementation Plan
+# Repeat Open Request Ordinal + Test Mode Subject Prefix Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Prefix the subject line and description with an ordinal (2nd, SECOND REQUEST, etc.) when a volunteer solicitation email is a repeat send for the same service request.
+**Goal:** Prefix repeat volunteer solicitation emails with an ordinal in the subject and body (2nd/SECOND REQUEST, etc.), and prefix every outgoing email subject with `[TEST]` when `TEST_RECIPIENTS` is active.
 
-**Architecture:** Add a SQL query and db function to count prior successful `open` notifications for a service request. Add two pure ordinal-mapping helpers in the processor. In the `open` send branch, fetch the count, derive the ordinal strings, and apply them to the subject and a local copy of `requestData` before template rendering — no template changes needed.
+**Architecture:** Add a SQL query and db function to count prior successful `open` notifications. Add pure helpers `getSubjectOrdinal`, `getBodyOrdinalPrefix`, `buildSubject`, and `buildOpenSubjectAndDescription` in the processor. Wire `buildSubject` into all four event branches for the `[TEST]` prefix; wire `buildOpenSubjectAndDescription` into the `open` branch for the ordinal. No template changes.
 
 **Tech Stack:** Node.js (CommonJS), mysql2/promise, node:test
 
 ## Global Constraints
 
-- Only `open` event type is affected; all other event types are unchanged.
-- First send (`priorCount === 0`) produces no change to existing subject or body format.
-- Count query excludes failed and unsent rows (`sent_at IS NOT NULL` only).
-- Template functions receive no new parameters; description prefix is applied via a local `requestData` copy.
+- Ordinal prefix applies to `open` event type only (subject and description body).
+- `[TEST]` prefix applies to all event types, subject line only.
+- When both apply, `[TEST]` comes first: `"[TEST] 2nd SR Request #..."`.
+- First send (`priorCount === 0`) produces no ordinal change to subject or body.
+- Count query: `sent_at IS NOT NULL` only (excludes failed and unsent rows).
 - Ordinal range: 1 → 2nd/SECOND, 2 → 3rd/THIRD, 3 → 4th/FOURTH. `priorCount >= 4` logs a warning and applies no prefix.
-- Test runner: `node --test` (no Jest/Mocha).
+- Template functions receive no new parameters; description prefix applied via local `requestData` copy.
+- Test mode detected via `getTestConfig().overrideRecipients !== null`; `isTestMode` is already returned by all `resolveRecipients*` functions.
+- Test runner: `node --test`.
 
 ---
 
@@ -71,7 +74,7 @@ git commit -m "feat: add getPriorOpenCount query and db function"
 
 ---
 
-### Task 2: Add ordinal helper functions and unit tests
+### Task 2: Add subject helper functions and unit tests
 
 **Files:**
 - Modify: `src/email-processor.js`
@@ -82,54 +85,69 @@ git commit -m "feat: add getPriorOpenCount query and db function"
 - Produces:
   - `getSubjectOrdinal(priorCount: number): string | null` — exported from `src/email-processor.js`
   - `getBodyOrdinalPrefix(priorCount: number): string | null` — exported from `src/email-processor.js`
+  - `buildSubject(baseSubject: string, isTestMode: boolean): string` — exported from `src/email-processor.js`
 
 - [ ] **Step 1: Write failing tests in `test/email-processor.test.js`**
 
-Add after the existing tests:
+Add after the existing tests (update the destructure at the top of the file to include the new exports):
 
 ```js
-const { getSubjectOrdinal, getBodyOrdinalPrefix } = require('../src/email-processor.js')
+const { deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject } = require('../src/email-processor.js')
 
+// getSubjectOrdinal
 test('getSubjectOrdinal returns null for first send', () => {
   assert.equal(getSubjectOrdinal(0), null)
 })
-
 test('getSubjectOrdinal returns 2nd for second send', () => {
   assert.equal(getSubjectOrdinal(1), '2nd')
 })
-
 test('getSubjectOrdinal returns 3rd for third send', () => {
   assert.equal(getSubjectOrdinal(2), '3rd')
 })
-
 test('getSubjectOrdinal returns 4th for fourth send', () => {
   assert.equal(getSubjectOrdinal(3), '4th')
 })
-
 test('getSubjectOrdinal returns null for fifth or more send', () => {
   assert.equal(getSubjectOrdinal(4), null)
   assert.equal(getSubjectOrdinal(99), null)
 })
 
+// getBodyOrdinalPrefix
 test('getBodyOrdinalPrefix returns null for first send', () => {
   assert.equal(getBodyOrdinalPrefix(0), null)
 })
-
 test('getBodyOrdinalPrefix returns SECOND REQUEST for second send', () => {
   assert.equal(getBodyOrdinalPrefix(1), 'SECOND REQUEST')
 })
-
 test('getBodyOrdinalPrefix returns THIRD REQUEST for third send', () => {
   assert.equal(getBodyOrdinalPrefix(2), 'THIRD REQUEST')
 })
-
 test('getBodyOrdinalPrefix returns FOURTH REQUEST for fourth send', () => {
   assert.equal(getBodyOrdinalPrefix(3), 'FOURTH REQUEST')
 })
-
 test('getBodyOrdinalPrefix returns null for fifth or more send', () => {
   assert.equal(getBodyOrdinalPrefix(4), null)
   assert.equal(getBodyOrdinalPrefix(99), null)
+})
+
+// buildSubject
+test('buildSubject returns base subject in non-test mode', () => {
+  assert.equal(
+    buildSubject('SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026', false),
+    'SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026'
+  )
+})
+test('buildSubject prepends [TEST] in test mode', () => {
+  assert.equal(
+    buildSubject('SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026', true),
+    '[TEST] SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026'
+  )
+})
+test('buildSubject prepends [TEST] before ordinal in test mode', () => {
+  assert.equal(
+    buildSubject('2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026', true),
+    '[TEST] 2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026'
+  )
 })
 ```
 
@@ -139,7 +157,7 @@ test('getBodyOrdinalPrefix returns null for fifth or more send', () => {
 node --test test/email-processor.test.js
 ```
 
-Expected: failures with "getSubjectOrdinal is not a function" (or similar).
+Expected: failures referencing undefined exports.
 
 - [ ] **Step 3: Implement the helper functions in `src/email-processor.js`**
 
@@ -164,12 +182,16 @@ function getBodyOrdinalPrefix(priorCount) {
   }
   return BODY_ORDINALS[priorCount];
 }
+
+function buildSubject(baseSubject, isTestMode) {
+  return isTestMode ? `[TEST] ${baseSubject}` : baseSubject;
+}
 ```
 
-Add `getSubjectOrdinal` and `getBodyOrdinalPrefix` to the `module.exports` at the bottom of the file:
+Update `module.exports` at the bottom:
 
 ```js
-module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject };
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -184,12 +206,84 @@ Expected: all tests pass.
 
 ```bash
 git add src/email-processor.js test/email-processor.test.js
-git commit -m "feat: add getSubjectOrdinal and getBodyOrdinalPrefix helpers"
+git commit -m "feat: add getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject helpers"
 ```
 
 ---
 
-### Task 3: Wire ordinal into the open-event send path
+### Task 3: Wire `[TEST]` prefix into all event-type subject lines
+
+**Files:**
+- Modify: `src/email-processor.js`
+
+**Interfaces:**
+- Consumes: `buildSubject(baseSubject, isTestMode)` — defined in Task 2
+
+Note: `isTestMode` is already available in each branch via the return value of `resolveRecipientsForOpenRequest`, `resolveRecipientsForConfirmedRequest`, and `resolveRecipientsForCancelledRequest`. The `reminder` branch currently logs a warning and marks failed — no subject to update there.
+
+- [ ] **Step 1: Update the `open` branch subject line**
+
+In the `sendToBccVolunteers` branch (around line 302), the subject is currently built as:
+
+```js
+const subject = `SR Request #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+```
+
+Replace with:
+
+```js
+const baseSubject = `SR Request #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+const subject = buildSubject(baseSubject, recipients.isTestMode);
+```
+
+- [ ] **Step 2: Update the `confirmed` branch subject line**
+
+In the `confirmed` branch (around line 329), the subject is currently:
+
+```js
+const subject = `SR Conf #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+```
+
+Replace with:
+
+```js
+const baseSubject = `SR Conf #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+const subject = buildSubject(baseSubject, recipients.isTestMode);
+```
+
+- [ ] **Step 3: Update the `cancelled` branch subject line**
+
+In the `cancelled` branch (around line 383), the subject is currently:
+
+```js
+const subject = `SR Cancel #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+```
+
+Replace with:
+
+```js
+const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+const subject = buildSubject(baseSubject, recipients.isTestMode);
+```
+
+- [ ] **Step 4: Run all tests**
+
+```bash
+node --test
+```
+
+Expected: all tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/email-processor.js
+git commit -m "feat: prepend [TEST] to subject line in test mode for all event types"
+```
+
+---
+
+### Task 4: Wire ordinal into the open-event send path
 
 **Files:**
 - Modify: `src/email-processor.js`
@@ -197,26 +291,15 @@ git commit -m "feat: add getSubjectOrdinal and getBodyOrdinalPrefix helpers"
 
 **Interfaces:**
 - Consumes:
-  - `getPriorOpenCount(serviceRequestId)` from `src/db.js`
-  - `getSubjectOrdinal(priorCount)` — defined in this file (Task 2)
-  - `getBodyOrdinalPrefix(priorCount)` — defined in this file (Task 2)
+  - `getPriorOpenCount(serviceRequestId)` from `src/db.js` (Task 1)
+  - `getSubjectOrdinal(priorCount)` — defined in Task 2
+  - `getBodyOrdinalPrefix(priorCount)` — defined in Task 2
+  - `buildSubject(baseSubject, isTestMode)` — defined in Task 2
+- Produces: `buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, isTestMode, getPriorOpenCountFn }): Promise<{ subject: string, description: string }>` — exported from `src/email-processor.js`
 
 - [ ] **Step 1: Import `getPriorOpenCount` in `src/email-processor.js`**
 
-The existing destructured require at the top of the file:
-
-```js
-const {
-  markNotificationSent,
-  markNotificationFailed,
-  getServiceRequest,
-  getPerson,
-  getVolunteersByCapability,
-  getPendingEmailEvents,
-} = require('./db');
-```
-
-Add `getPriorOpenCount` to that destructure:
+Update the existing destructured require at the top:
 
 ```js
 const {
@@ -230,55 +313,72 @@ const {
 } = require('./db');
 ```
 
-- [ ] **Step 2: Write failing integration tests in `test/email-processor.test.js`**
+- [ ] **Step 2: Write failing tests in `test/email-processor.test.js`**
 
-These tests mock the db and gmail modules. Add them after the existing tests. First check whether `test/email-processor.test.js` already has a mock setup — if it does, follow the same pattern. If not, use `node:test`'s `mock.module` (Node 22+) or manual injection. Given the current codebase uses no dependency injection, the simplest approach is to add a thin wrapper for injection. See Step 3 for how the production code changes to support this.
-
-Add to `test/email-processor.test.js`:
+Update the destructure at the top to include `buildOpenSubjectAndDescription`:
 
 ```js
-const { buildOpenSubjectAndDescription } = require('../src/email-processor.js')
+const { deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription } = require('../src/email-processor.js')
+```
 
-test('buildOpenSubjectAndDescription: first send returns unchanged subject and description', async () => {
+Add after the existing tests:
+
+```js
+// buildOpenSubjectAndDescription
+test('buildOpenSubjectAndDescription: first send, non-test mode', async () => {
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
     startAt: '2026-06-22T14:00:00Z',
-    serviceName: 'Ride: Medical Appnt',
     description: 'Member needs a ride.',
-    getPriorOpenCountFn: async () => 0,
     serviceRequestId: 1,
+    isTestMode: false,
+    getPriorOpenCountFn: async () => 0,
   })
   assert.equal(result.subject, 'SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
   assert.equal(result.description, 'Member needs a ride.')
 })
 
-test('buildOpenSubjectAndDescription: second send prefixes subject and description', async () => {
+test('buildOpenSubjectAndDescription: first send, test mode', async () => {
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
     startAt: '2026-06-22T14:00:00Z',
-    serviceName: 'Ride: Medical Appnt',
     description: 'Member needs a ride.',
-    getPriorOpenCountFn: async () => 1,
     serviceRequestId: 1,
+    isTestMode: true,
+    getPriorOpenCountFn: async () => 0,
+  })
+  assert.equal(result.subject, '[TEST] SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'Member needs a ride.')
+})
+
+test('buildOpenSubjectAndDescription: second send, non-test mode', async () => {
+  const result = await buildOpenSubjectAndDescription({
+    subjectNumber: '27143',
+    memberName: 'Mary Lou Foley',
+    startAt: '2026-06-22T14:00:00Z',
+    description: 'Member needs a ride.',
+    serviceRequestId: 1,
+    isTestMode: false,
+    getPriorOpenCountFn: async () => 1,
   })
   assert.equal(result.subject, '2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
   assert.equal(result.description, 'SECOND REQUEST Member needs a ride.')
 })
 
-test('buildOpenSubjectAndDescription: third send prefixes subject and description', async () => {
+test('buildOpenSubjectAndDescription: second send, test mode', async () => {
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
     startAt: '2026-06-22T14:00:00Z',
-    serviceName: 'Ride: Medical Appnt',
     description: 'Member needs a ride.',
-    getPriorOpenCountFn: async () => 2,
     serviceRequestId: 1,
+    isTestMode: true,
+    getPriorOpenCountFn: async () => 1,
   })
-  assert.equal(result.subject, '3rd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
-  assert.equal(result.description, 'THIRD REQUEST Member needs a ride.')
+  assert.equal(result.subject, '[TEST] 2nd SR Request #27143-For Mary Lou Foley-Service Date: 6/22/2026')
+  assert.equal(result.description, 'SECOND REQUEST Member needs a ride.')
 })
 ```
 
@@ -290,20 +390,22 @@ node --test test/email-processor.test.js
 
 Expected: failures with "buildOpenSubjectAndDescription is not a function".
 
-- [ ] **Step 4: Extract `buildOpenSubjectAndDescription` helper in `src/email-processor.js`**
+- [ ] **Step 4: Implement `buildOpenSubjectAndDescription` in `src/email-processor.js`**
 
-Add this function after the `getBodyOrdinalPrefix` function from Task 2:
+Add after `buildSubject`:
 
 ```js
-async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, getPriorOpenCountFn }) {
+async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, isTestMode, getPriorOpenCountFn }) {
   const priorCount = await getPriorOpenCountFn(serviceRequestId);
   const subjectOrdinal = getSubjectOrdinal(priorCount);
   const bodyPrefix = getBodyOrdinalPrefix(priorCount);
 
   const dateStr = formatDateForSubject(startAt);
-  const subject = subjectOrdinal
+  const baseSubject = subjectOrdinal
     ? `${subjectOrdinal} SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`
     : `SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`;
+
+  const subject = buildSubject(baseSubject, isTestMode);
 
   const finalDescription = bodyPrefix
     ? `${bodyPrefix} ${description}`
@@ -313,10 +415,10 @@ async function buildOpenSubjectAndDescription({ subjectNumber, memberName, start
 }
 ```
 
-Export it:
+Update `module.exports`:
 
 ```js
-module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildOpenSubjectAndDescription };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription };
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -327,16 +429,17 @@ node --test test/email-processor.test.js
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Wire `buildOpenSubjectAndDescription` into `pollOnce`**
+- [ ] **Step 6: Replace the open-event subject line in `pollOnce` with `buildOpenSubjectAndDescription`**
 
-In `pollOnce`, find the `sendToBccVolunteers` branch (around line 299). Replace the existing subject construction and `getOpenRequestTemplate` call:
+In the `sendToBccVolunteers` branch, remove the `baseSubject`/`subject` lines added in Task 3 Step 1 and replace the block up to the `getOpenRequestTemplate` call:
 
-**Before:**
+**Before (after Task 3):**
 ```js
 if (routing.sendToBccVolunteers) {
   const recipients = await resolveRecipientsForOpenRequest(requestData);
   if (recipients) {
-    const subject = `SR Request #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+    const baseSubject = `SR Request #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+    const subject = buildSubject(baseSubject, recipients.isTestMode);
     const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', requestData);
 ```
 
@@ -351,6 +454,7 @@ if (routing.sendToBccVolunteers) {
       startAt: requestData.start_at,
       description: requestData.description,
       serviceRequestId: event.service_request_id,
+      isTestMode: recipients.isTestMode,
       getPriorOpenCountFn: getPriorOpenCount,
     });
     const openRequestData = openDescription !== requestData.description
