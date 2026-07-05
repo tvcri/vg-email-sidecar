@@ -1,76 +1,76 @@
 const GET_PENDING_EVENTS = `
-  SELECT id, event_type, service_request_id, created_at
+  SELECT id, eventType, serviceRequestId, createdAt
   FROM notification_event
-  WHERE sent_at IS NULL AND failed_at IS NULL
-  ORDER BY created_at ASC
+  WHERE sentAt IS NULL AND failedAt IS NULL
+  ORDER BY createdAt ASC
 `;
 
 const MARK_NOTIFICATION_SENT = `
   UPDATE notification_event
-  SET sent_at = NOW(), recipients = ?
+  SET sentAt = NOW(), recipients = ?
   WHERE id = ?
 `;
 
 const MARK_NOTIFICATION_FAILED = `
   UPDATE notification_event
-  SET failed_at = NOW()
+  SET failedAt = NOW()
   WHERE id = ?
 `;
 
 const GET_SERVICE_REQUEST = `
   SELECT
     sr.id,
-    sr.request_number,
-    sr.service_name,
-    sr.village_id,
-    sr.member_person_id,
-    sr.volunteer_person_id,
+    sr.requestNumber,
+    sr.serviceName,
+    sr.villageId,
+    sr.memberPersonId,
+    sr.volunteerPersonId,
     sr.status,
     sr.description,
     sr.instructions,
-    sr.start_at,
-    sr.appt_time,
-    sr.return_time,
-    sr.finish_at,
+    sr.startAt,
+    sr.apptTime,
+    sr.returnTime,
+    sr.finishAt,
     sr.address,
     sr.city,
     sr.state,
     LPAD(sr.zip, 5, '0') as zip,
     sr.destination,
     sr.phone,
-    sr.transportation_type,
-    mp.id as member_person_id,
-    mp.full_name as member_name,
-    mp.email as member_email,
-    mp.phone as member_phone,
-    mp.cell as member_cell,
-    mp.address as member_address,
-    mp.city as member_city,
-    mp.state as member_state,
-    LPAD(mp.zip, 5, '0') as member_zip,
-    mp.emergency_contact_name,
-    mp.emergency_contact_relationship,
-    mp.emergency_contact_phone,
-    m.service_notes
+    sr.transportationType,
+    mp.id as memberPersonId,
+    mp.fullName as memberName,
+    mp.email as memberEmail,
+    mp.phone as memberPhone,
+    mp.cell as memberCell,
+    mp.address as memberAddress,
+    mp.city as memberCity,
+    mp.state as memberState,
+    LPAD(mp.zip, 5, '0') as memberZip,
+    mp.emergencyContactName,
+    mp.emergencyContactRelationship,
+    mp.emergencyContactPhone,
+    m.serviceNotes
   FROM service_request sr
-  LEFT JOIN person mp ON sr.member_person_id = mp.id
-  LEFT JOIN active_member m ON mp.id = m.person_id
+  LEFT JOIN person mp ON sr.memberPersonId = mp.id
+  LEFT JOIN active_member m ON mp.id = m.personId
   WHERE sr.id = ?
 `;
 
 const GET_VOLUNTEER = `
   SELECT
     v.id,
-    v.person_id,
-    p.full_name,
+    v.personId,
+    p.fullName,
     p.email
   FROM active_volunteer v
-  JOIN person p ON v.person_id = p.id
+  JOIN person p ON v.personId = p.id
   WHERE v.id = ?
 `;
 
 const GET_PERSON = `
-  SELECT id, full_name, email, phone, cell
+  SELECT id, fullName, email, phone, cell
   FROM person
   WHERE id = ?
 `;
@@ -78,21 +78,21 @@ const GET_PERSON = `
 const GET_VOLUNTEERS_BY_CAPABILITY = `
   SELECT DISTINCT
     p.id,
-    p.full_name,
+    p.fullName,
     p.email
   FROM active_volunteer v
-  JOIN person p ON v.person_id = p.id
-  JOIN volunteer_capability vc ON v.id = vc.volunteer_id
-  JOIN capability c ON vc.capability_id = c.id
-  WHERE p.village_id = ? AND c.name = ?
+  JOIN person p ON v.personId = p.id
+  JOIN volunteer_capability vc ON v.id = vc.volunteerId
+  JOIN capability c ON vc.capabilityId = c.id
+  WHERE p.villageId = ? AND c.name = ?
 `;
 
 const GET_PRIOR_OPEN_COUNT = `
-  SELECT COUNT(*) AS prior_count
+  SELECT COUNT(*) AS priorCount
   FROM notification_event
-  WHERE service_request_id = ?
-    AND event_type = 'open'
-    AND sent_at IS NOT NULL
+  WHERE serviceRequestId = ?
+    AND eventType = 'open'
+    AND sentAt IS NOT NULL
 `;
 
 module.exports = {

@@ -29,20 +29,20 @@ function formatTimeOnly(isoDateTime) {
 
 function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
-    service_notes,
+    serviceNotes,
   } = requestData;
 
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone || ''}<br>${member_cell ? `Cell: ${member_cell}` : ''}`
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `Cell: ${memberCell}` : ''}`
     : '';
 
   const html = `<html>
@@ -68,7 +68,7 @@ function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     <div>Hello,<br><br>
-                    The Village Common of RI is seeking someone to provide ${service_name} for ${member_name}.</div>
+                    The Village Common of RI is seeking someone to provide ${serviceName} for ${memberName}.</div>
                     <div></div>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table style='font-family: Arial, sans-serif; font-size: 12px; font-weight: normal; width: 310px; height: 100px;' cellspacing='0' cellpadding='3' border='0'>
@@ -80,7 +80,7 @@ function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
                           <tr>
                             <td>Requesting Member:</td>
                             <td>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                         </tbody>
@@ -95,7 +95,7 @@ function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
                       </table>
                     </div>
                     <br>
-                    Special instructions/info: ${service_notes || ''}<br><br>
+                    Special instructions/info: ${serviceNotes || ''}<br><br>
                     Please let us know if you can help with this request by replying to this email.<br>
                     <br>
                     Thanks for all you do.<br>
@@ -127,23 +127,23 @@ function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
 
 function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
-    service_notes,
-    emergency_contact_name,
-    emergency_contact_relationship,
-    emergency_contact_phone,
+    serviceNotes,
+    emergencyContactName,
+    emergencyContactRelationship,
+    emergencyContactPhone,
   } = requestData;
 
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone || ''}<br>${member_cell ? `Cell: ${member_cell}` : ''}`
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `Cell: ${memberCell}` : ''}`
     : '';
 
   const html = `<html>
@@ -169,7 +169,7 @@ function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     <div>Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}.<br>
+                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br>
                     Short Description: ${description || ''}<br><br>
                     You are now confirmed as a service provider for this service request.</div>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
@@ -177,24 +177,24 @@ function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
                         <tbody>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                           <tr>
                             <td>Requesting Member:</td>
                             <td>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${service_notes || ''}<br><br>
+                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
                     Please call the member as soon as possible to arrange a time that works for both of you.<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
-                    ${emergency_contact_name ? `Member's Emergency Contact:<br>${emergency_contact_name}<br>${emergency_contact_relationship || ''}<br>${emergency_contact_phone || ''}<br><br>` : ''}
+                    ${emergencyContactName ? `Member's Emergency Contact:<br>${emergencyContactName}<br>${emergencyContactRelationship || ''}<br>${emergencyContactPhone || ''}<br><br>` : ''}
                     Thanks for all you do.<br><br>
                     The Village Common of RI<br>
                   </td>
@@ -221,38 +221,38 @@ function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
 
 function buildRidesOpenRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
     address,
     city,
     state,
     zip,
     destination,
-    start_at,
-    appt_time,
-    return_time,
-    finish_at,
-    transportation_type,
-    service_notes,
+    startAt,
+    apptTime,
+    returnTime,
+    finishAt,
+    transportationType,
+    serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(start_at);
-  const pickupTime = formatTimeOnly(start_at);
-  const appointmentTime = formatTimeOnly(appt_time);
-  const returnPickupTime = formatTimeOnly(return_time);
-  const dropoffTime = formatTimeOnly(finish_at);
+  const startDate = formatDateOnly(startAt);
+  const pickupTime = formatTimeOnly(startAt);
+  const appointmentTime = formatTimeOnly(apptTime);
+  const returnPickupTime = formatTimeOnly(returnTime);
+  const dropoffTime = formatTimeOnly(finishAt);
 
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone || ''}<br>${member_cell ? `${member_cell} (cell)` : ''}`
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = member_address ? `Home - ${member_address} ${member_city}, ${member_state} ${member_zip}` : '';
+  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
   const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -279,7 +279,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Hello,<br><br>
-                    The Village Common of RI is seeking someone to provide ${service_name} for ${member_name}<br>
+                    The Village Common of RI is seeking someone to provide ${serviceName} for ${memberName}<br>
                     on ${startDate}.<br>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
@@ -291,7 +291,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                           <tr>
                             <td valign='top'>Requesting Member:</td>
                             <td valign='top'>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                           <tr>
@@ -323,16 +323,16 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>Drop-off Time</td>
                             <td valign='top'>${dropoffTime}</td>
                           </tr>` : ''}
-                          ${transportation_type ? `<tr>
+                          ${transportationType ? `<tr>
                             <td valign='top'>Transportation:</td>
-                            <td>${transportation_type}</td>
+                            <td>${transportationType}</td>
                           </tr>` : ''}
                         </tbody>
                       </table>
                     </div>
-                    <br>Members Special Instructions: ${service_notes || ''}<br>
+                    <br>Members Special Instructions: ${serviceNotes || ''}<br>
                     <br>
-                    Please let us know if you can help with this ${service_name} request by replying to this email.<br>
+                    Please let us know if you can help with this ${serviceName} request by replying to this email.<br>
                     <br>
                     Thanks for all you do.<br>
                     <br>
@@ -361,41 +361,41 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
 
 function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
     address,
     city,
     state,
     zip,
     destination,
-    start_at,
-    appt_time,
-    return_time,
-    finish_at,
-    transportation_type,
-    service_notes,
-    emergency_contact_name,
-    emergency_contact_relationship,
-    emergency_contact_phone,
+    startAt,
+    apptTime,
+    returnTime,
+    finishAt,
+    transportationType,
+    serviceNotes,
+    emergencyContactName,
+    emergencyContactRelationship,
+    emergencyContactPhone,
   } = requestData;
 
-  const startDate = formatDateOnly(start_at);
-  const pickupTime = formatTimeOnly(start_at);
-  const appointmentTime = formatTimeOnly(appt_time);
-  const returnPickupTime = formatTimeOnly(return_time);
-  const dropoffTime = formatTimeOnly(finish_at);
+  const startDate = formatDateOnly(startAt);
+  const pickupTime = formatTimeOnly(startAt);
+  const appointmentTime = formatTimeOnly(apptTime);
+  const returnPickupTime = formatTimeOnly(returnTime);
+  const dropoffTime = formatTimeOnly(finishAt);
 
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone || ''}<br>${member_cell ? `${member_cell} (cell)` : ''}`
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = member_address ? `Home - ${member_address} ${member_city}, ${member_state} ${member_zip}` : '';
+  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
   const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -422,7 +422,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}.<br>
+                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br>
                     Short Description: ${description || ''}<br><br>
                     You are now confirmed as a service provider for this service request.<br>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
@@ -430,7 +430,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                         <tbody>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                           <tr>
                             <td>Date:</td>
@@ -439,10 +439,10 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                           <tr>
                             <td valign='top'>Requesting Member:</td>
                             <td valign='top'>
-                              ${member_name}<br>
-                              ${memberAddress}<br>
-                              ${member_phone || ''}<br>
-                              ${member_cell ? `cell: ${member_cell}` : ''}
+                              ${memberName}<br>
+                              ${memberAddressBlock}<br>
+                              ${memberPhone || ''}<br>
+                              ${memberCell ? `cell: ${memberCell}` : ''}
                             </td>
                           </tr>
                           <tr>
@@ -474,20 +474,20 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>Drop-off Time</td>
                             <td valign='top'>${dropoffTime}</td>
                           </tr>` : ''}
-                          ${transportation_type ? `<tr>
+                          ${transportationType ? `<tr>
                             <td valign='top'>Transportation:</td>
-                            <td>${transportation_type}</td>
+                            <td>${transportationType}</td>
                           </tr>` : ''}
                         </tbody>
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${service_notes || ''}<br><br>
+                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
                     Please call the member as soon as possible and let them know you will be their service provider. In addition, call the night before or the day of the service to reconfirm with the member.<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
-                    ${emergency_contact_name ? `Member's Emergency Contact:<br>${emergency_contact_name}<br>${emergency_contact_relationship || ''}<br>${emergency_contact_phone || ''}<br><br>` : ''}
+                    ${emergencyContactName ? `Member's Emergency Contact:<br>${emergencyContactName}<br>${emergencyContactRelationship || ''}<br>${emergencyContactPhone || ''}<br><br>` : ''}
                     Thanks for all you do.<br><br>
                     The Village Common of RI<br>
                   </td>
@@ -514,30 +514,30 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
 
 function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
     address,
     city,
     state,
     zip,
     destination,
-    start_at,
-    transportation_type,
-    service_notes,
+    startAt,
+    transportationType,
+    serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(start_at);
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_cell ? `${member_cell} (cell)` : ''}`
+  const startDate = formatDateOnly(startAt);
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = member_address ? `Home - ${member_address} ${member_city}, ${member_state} ${member_zip}` : '';
+  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -564,7 +564,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Hello,<br><br>
-                    The Village Common of RI is seeking someone to provide ${service_name} for ${member_name} on ${startDate}.
+                    The Village Common of RI is seeking someone to provide ${serviceName} for ${memberName} on ${startDate}.
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
@@ -575,7 +575,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
                           <tr>
                             <td valign='top'>Requesting<br>Member:</td>
                             <td valign='top'>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                           <tr>
@@ -591,16 +591,16 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
                               ${mapUrl ? `<br><a href='${mapUrl}' target='_blank'>Show destination on map</a>` : ''}
                             </td>
                           </tr>
-                          ${transportation_type ? `<tr>
+                          ${transportationType ? `<tr>
                             <td valign='top'>Transportation:</td>
-                            <td>${transportation_type}</td>
+                            <td>${transportationType}</td>
                           </tr>` : ''}
                         </tbody>
                       </table>
                     </div>
-                    <br>Members Special Instructions: ${service_notes || ''}<br>
+                    <br>Members Special Instructions: ${serviceNotes || ''}<br>
                     <br>
-                    Please let us know if you can help with this ${service_name} request by replying to this email.<br>
+                    Please let us know if you can help with this ${serviceName} request by replying to this email.<br>
                     <br>
                     Thanks for all you do.<br>
                     <br>
@@ -629,33 +629,33 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
 
 function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
     address,
     city,
     state,
     zip,
     destination,
-    start_at,
-    transportation_type,
-    service_notes,
-    emergency_contact_name,
-    emergency_contact_relationship,
-    emergency_contact_phone,
+    startAt,
+    transportationType,
+    serviceNotes,
+    emergencyContactName,
+    emergencyContactRelationship,
+    emergencyContactPhone,
   } = requestData;
 
-  const startDate = formatDateOnly(start_at);
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_cell ? `cell: ${member_cell}` : ''}`
+  const startDate = formatDateOnly(startAt);
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `cell: ${memberCell}` : ''}`
     : '';
-  const startingLocation = member_address ? `Home - ${member_address} ${member_city}, ${member_state} ${member_zip}` : '';
+  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -682,7 +682,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}.<br><br>
+                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br><br>
                     Short Description: ${description || ''}<br><br>
                     You are now confirmed as a service provider for this service request.
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
@@ -690,7 +690,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                         <tbody>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                           <tr>
                             <td>Date:</td>
@@ -699,7 +699,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                           <tr>
                             <td valign='top'>Requesting Member:</td>
                             <td valign='top'>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                           <tr>
@@ -715,20 +715,20 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                               ${mapUrl ? `<br><a href='${mapUrl}' target='_blank'>Show on map</a>` : ''}
                             </td>
                           </tr>
-                          ${transportation_type ? `<tr>
+                          ${transportationType ? `<tr>
                             <td valign='top'>Transportation:</td>
-                            <td>${transportation_type}</td>
+                            <td>${transportationType}</td>
                           </tr>` : ''}
                         </tbody>
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${service_notes || ''}<br><br>
+                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
                     Please call the member as soon as possible to let them know you will be their service provider. In addition, call the night before or the day of the service to reconfirm with the member.<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
-                    ${emergency_contact_name ? `Member's Emergency Contact:<br>${emergency_contact_name}<br>${emergency_contact_relationship || ''}<br>${emergency_contact_phone || ''}<br><br>` : ''}
+                    ${emergencyContactName ? `Member's Emergency Contact:<br>${emergencyContactName}<br>${emergencyContactRelationship || ''}<br>${emergencyContactPhone || ''}<br><br>` : ''}
                     Thanks for all you do.<br><br>
                     The Village Common of RI<br>
                   </td>
@@ -755,20 +755,20 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
 
 function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
-    service_notes,
+    serviceNotes,
   } = requestData;
 
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>Home:<br>Cell: ${member_cell || ''}`
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>Home:<br>Cell: ${memberCell || ''}`
     : '';
 
   const html = `<html>
@@ -794,7 +794,7 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Hello,<br><br>
-                    The Village Common of RI is seeking someone to provide ${service_name} for ${member_name}.
+                    The Village Common of RI is seeking someone to provide ${serviceName} for ${memberName}.
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
@@ -805,7 +805,7 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
                           <tr>
                             <td valign='top'>Requesting Member:</td>
                             <td valign='top'>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                         </tbody>
@@ -814,7 +814,7 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
                     <br>
                     NOTE: The date and time for this service request are flexible, to be arranged with the member. Please ignore the date in the subject line of this email. It is only for our current records and will be updated once a service date is set.<br>
                     <br>
-                    Special instructions/info: ${service_notes || ''}<br><br>
+                    Special instructions/info: ${serviceNotes || ''}<br><br>
                     Please let us know if you can help with this request by replying to this email.<br>
                     <br>
                     Thanks for all you do.<br>
@@ -844,23 +844,23 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
 
 function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
   const {
-    service_name,
-    member_name,
-    member_phone,
-    member_cell,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
+    serviceName,
+    memberName,
+    memberPhone,
+    memberCell,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
     description,
-    service_notes,
-    emergency_contact_name,
-    emergency_contact_relationship,
-    emergency_contact_phone,
+    serviceNotes,
+    emergencyContactName,
+    emergencyContactRelationship,
+    emergencyContactPhone,
   } = requestData;
 
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}<br>${member_phone ? `Home: ${member_phone}<br>` : ''}${member_cell ? `Cell: ${member_cell}` : ''}`
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone ? `Home: ${memberPhone}<br>` : ''}${memberCell ? `Cell: ${memberCell}` : ''}`
     : '';
 
   const html = `<html>
@@ -886,7 +886,7 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${service_name} for ${member_name}.<br><br>
+                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br><br>
                     Short Description: ${description || ''}<br><br>
                     You are now confirmed as a service provider for this service request.
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
@@ -894,24 +894,24 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
                         <tbody>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                           <tr>
                             <td valign='top'>Requesting Member:</td>
                             <td valign='top'>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${service_notes || ''}<br><br>
+                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
                     Please call the member as soon as possible to arrange a time that works for both of you.<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
-                    ${emergency_contact_name ? `Member's Emergency Contact:<br>${emergency_contact_name}<br>${emergency_contact_relationship || ''}<br>${emergency_contact_phone || ''}<br><br>` : ''}
+                    ${emergencyContactName ? `Member's Emergency Contact:<br>${emergencyContactName}<br>${emergencyContactRelationship || ''}<br>${emergencyContactPhone || ''}<br><br>` : ''}
                     Thanks for all you do.<br><br>
                     The Village Common of RI<br>
                   </td>
@@ -938,33 +938,33 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
 
 function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
   const {
-    service_name,
+    serviceName,
     description,
     address,
     city,
     state,
     zip,
     destination,
-    start_at,
-    appt_time,
-    return_time,
-    finish_at,
-    transportation_type,
-    service_notes,
+    startAt,
+    apptTime,
+    returnTime,
+    finishAt,
+    transportationType,
+    serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(start_at);
-  const pickupTime = formatTimeOnly(start_at);
-  const appointmentTime = formatTimeOnly(appt_time);
-  const returnPickupTime = formatTimeOnly(return_time);
-  const dropoffTime = formatTimeOnly(finish_at);
+  const startDate = formatDateOnly(startAt);
+  const pickupTime = formatTimeOnly(startAt);
+  const appointmentTime = formatTimeOnly(apptTime);
+  const returnPickupTime = formatTimeOnly(returnTime);
+  const dropoffTime = formatTimeOnly(finishAt);
 
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
     : (destination || '');
 
   const volunteerContact = [
-    volunteerData.full_name,
+    volunteerData.fullName,
     volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
     volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
   ].filter(Boolean).join('<br>');
@@ -1001,7 +1001,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                           </tr>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                           <tr>
                             <td>Date:</td>
@@ -1029,9 +1029,9 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                             <td valign='top'>Drop-off Time</td>
                             <td valign='top'>${dropoffTime}</td>
                           </tr>` : ''}
-                          ${transportation_type ? `<tr>
+                          ${transportationType ? `<tr>
                             <td valign='top'>Transportation:</td>
-                            <td>${transportation_type}</td>
+                            <td>${transportationType}</td>
                           </tr>` : ''}
                         </tbody>
                       </table>
@@ -1039,7 +1039,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                     <br>
                     Your service provider(s) will be:<br><br>
                     ${volunteerContact}<br><br>
-                    ${service_notes ? `<br>` : ''}
+                    ${serviceNotes ? `<br>` : ''}
                     If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
                     <br>
                     The Village Common of RI<br>
@@ -1070,13 +1070,13 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
 
 function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
   const {
-    service_name,
+    serviceName,
     description,
-    service_notes,
+    serviceNotes,
   } = requestData;
 
   const volunteerContact = [
-    volunteerData.full_name,
+    volunteerData.fullName,
     volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
     volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
   ].filter(Boolean).join('<br>');
@@ -1113,7 +1113,7 @@ function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, re
                           </tr>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1151,25 +1151,25 @@ function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, re
 
 function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
   const {
-    service_name,
+    serviceName,
     description,
     address,
     city,
     state,
     zip,
     destination,
-    start_at,
-    transportation_type,
-    service_notes,
+    startAt,
+    transportationType,
+    serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(start_at);
+  const startDate = formatDateOnly(startAt);
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
     : (destination || '');
 
   const volunteerContact = [
-    volunteerData.full_name,
+    volunteerData.fullName,
     volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
     volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
   ].filter(Boolean).join('<br>');
@@ -1206,7 +1206,7 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
                           </tr>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                           <tr>
                             <td>Date:</td>
@@ -1216,9 +1216,9 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
                             <td valign='top'>Destination:</td>
                             <td valign='top'>${destinationAddress}</td>
                           </tr>
-                          ${transportation_type ? `<tr>
+                          ${transportationType ? `<tr>
                             <td valign='top'>Transportation:</td>
-                            <td>${transportation_type}</td>
+                            <td>${transportationType}</td>
                           </tr>` : ''}
                         </tbody>
                       </table>
@@ -1256,13 +1256,13 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
 
 function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
   const {
-    service_name,
+    serviceName,
     description,
-    service_notes,
+    serviceNotes,
   } = requestData;
 
   const volunteerContact = [
-    volunteerData.full_name,
+    volunteerData.fullName,
     volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
     volunteerData.cell ? `${volunteerData.cell}  (cell)` : (volunteerData.phone || ''),
   ].filter(Boolean).join('<br>');
@@ -1299,7 +1299,7 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
                           </tr>
                           <tr>
                             <td>Service:</td>
-                            <td>${service_name}</td>
+                            <td>${serviceName}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1337,31 +1337,31 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
 
 // Cancellation notices are identical across all service types in the samples:
 // only the Service value and whether a time is shown vary. Rides include the
-// pickup time (start_at); the other service types are flexible and show the
+// pickup time (startAt); the other service types are flexible and show the
 // date only. This single template covers all of them, parameterized by the
 // recipient's first name (the confirmed volunteer in the samples).
 function buildCancelledTemplate(recipientFirstName, requestData) {
   const {
-    service_name,
+    serviceName,
     status,
-    member_name,
-    member_address,
-    member_city,
-    member_state,
-    member_zip,
-    start_at,
+    memberName,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
+    startAt,
   } = requestData;
 
-  const dateOnly = formatDateOnly(start_at);
-  const timeOnly = formatTimeOnly(start_at);
+  const dateOnly = formatDateOnly(startAt);
+  const timeOnly = formatTimeOnly(startAt);
   // Rides show date and pickup time; other service types show the date only.
-  const dateTime = service_name && service_name.startsWith('Ride:') && timeOnly
+  const dateTime = serviceName && serviceName.startsWith('Ride:') && timeOnly
     ? `${dateOnly} ${timeOnly}`
     : dateOnly;
 
-  const memberAddress = member_address
-    ? `${member_name}<br>${member_address}<br>${member_city}, ${member_state} ${member_zip}`
-    : member_name || '';
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}`
+    : memberName || '';
 
   const html = `<html>
 <body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
@@ -1396,7 +1396,7 @@ function buildCancelledTemplate(recipientFirstName, requestData) {
                           </tr>
                           <tr>
                             <td valign='top'>Service:</td>
-                            <td valign='top'>${service_name}</td>
+                            <td valign='top'>${serviceName}</td>
                           </tr>
                           <tr>
                             <td valign='top'>Date/Time:</td>
@@ -1405,7 +1405,7 @@ function buildCancelledTemplate(recipientFirstName, requestData) {
                           <tr>
                             <td valign='top'>Requesting Member:</td>
                             <td valign='top'>
-                              ${memberAddress}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                         </tbody>

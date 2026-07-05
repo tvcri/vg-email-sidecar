@@ -29,7 +29,7 @@ function getDbConfig() {
 const TARGET_QUERY = `
   SELECT id
   FROM service_request
-  WHERE id >= 1024 AND id <= 2003 AND service_name LIKE 'Ride:%'
+  WHERE id >= 1024 AND id <= 2003 AND serviceName LIKE 'Ride:%'
   ORDER BY id
 `;
 
@@ -57,14 +57,14 @@ function formatDateForSubject(isoDateTime) {
 }
 
 function buildSubject(requestData) {
-  return `CORRECTED: SR Request #${requestData.id}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+  return `CORRECTED: SR Request #${requestData.id}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
 }
 
 // Mirrors resolveRecipientsForOpenRequest in email-processor.js, fixed to the
 // 'Rides' capability. Returns null when there are no volunteer emails to send to.
 async function resolveRecipients(requestData) {
   const testConfig = getTestConfig();
-  const volunteers = await getVolunteersByCapability(requestData.village_id, 'Rides');
+  const volunteers = await getVolunteersByCapability(requestData.villageId, 'Rides');
   const volunteerEmails = volunteers.map((v) => v.email).filter(Boolean);
   if (volunteerEmails.length === 0) return null;
 
@@ -108,7 +108,7 @@ function injectCorrectionNotice(html) {
 
 function injectTestBanner(html, intendedVolunteers) {
   const list = (intendedVolunteers || [])
-    .map((v) => `${v.full_name} (${v.email})`)
+    .map((v) => `${v.fullName} (${v.email})`)
     .join('<br>');
   const banner = `<tr>
             <td>
