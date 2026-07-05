@@ -80,7 +80,7 @@ async function getVolunteersByCapability(villageId, capabilityName) {
 async function getPriorOpenCount(serviceRequestId) {
   return withConnection(async (conn) => {
     const [rows] = await conn.query(queries.GET_PRIOR_OPEN_COUNT, [serviceRequestId]);
-    return rows[0].prior_count;
+    return rows[0].priorCount;
   });
 }
 

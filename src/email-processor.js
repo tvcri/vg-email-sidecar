@@ -140,7 +140,7 @@ function buildSubject(baseSubject, isTestMode) {
 
 async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, requestNumber, isTestMode, getPriorOpenCountFn }) {
   const dbCount = await getPriorOpenCountFn(serviceRequestId);
-  // Legacy SRs (non-null request_number) had their first notification in the old system;
+  // Legacy SRs (non-null requestNumber) had their first notification in the old system;
   // add 1 so the ordinal accounts for that presumed-sent original.
   const priorCount = dbCount + (requestNumber ? 1 : 0);
 
@@ -182,7 +182,7 @@ function deriveRecipientsForEvent(eventType, requestData) {
     return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: true }
   }
   if (eventType === 'cancelled') {
-    const hasVolunteer = !!requestData.volunteer_person_id
+    const hasVolunteer = !!requestData.volunteerPersonId
     return { sendToBccVolunteers: false, sendToVolunteer: hasVolunteer, sendToMember: true }
   }
   if (eventType === 'reminder') {
@@ -193,14 +193,14 @@ function deriveRecipientsForEvent(eventType, requestData) {
 
 async function resolveRecipientsForOpenRequest(requestData) {
   const testConfig = getTestConfig();
-  const capability = getCapabilityFromServiceType(requestData.service_name);
+  const capability = getCapabilityFromServiceType(requestData.serviceName);
 
   if (!capability) {
-    console.warn(`Unknown service type: ${requestData.service_name}`);
+    console.warn(`Unknown service type: ${requestData.serviceName}`);
     return null;
   }
 
-  const volunteers = await getVolunteersByCapability(requestData.village_id, capability);
+  const volunteers = await getVolunteersByCapability(requestData.villageId, capability);
 
   if (volunteers.length === 0) {
     console.warn(`No volunteers found for capability: ${capability}`);
@@ -219,7 +219,7 @@ async function resolveRecipientsForOpenRequest(requestData) {
     console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
     return {
       bcc: testConfig.overrideRecipients.join(', '),
-      volunteerNames: volunteers.map(v => v.full_name),
+      volunteerNames: volunteers.map(v => v.fullName),
       // resolvedVolunteers is the real capability-matched pool, recorded in
       // recipients regardless of test mode. intendedVolunteers drives the
       // test-mode banner only.
@@ -231,7 +231,7 @@ async function resolveRecipientsForOpenRequest(requestData) {
 
   return {
     bcc: bccList,
-    volunteerNames: volunteers.map(v => v.full_name),
+    volunteerNames: volunteers.map(v => v.fullName),
     resolvedVolunteers: volunteers,
     intendedVolunteers: null,
     isTestMode: false,
@@ -241,18 +241,18 @@ async function resolveRecipientsForOpenRequest(requestData) {
 async function resolveRecipientsForConfirmedRequest(requestData) {
   const testConfig = getTestConfig();
 
-  const volunteer = await getPerson(requestData.volunteer_person_id);
+  const volunteer = await getPerson(requestData.volunteerPersonId);
 
   if (!volunteer || !volunteer.email) {
-    console.warn(`Volunteer person not found or has no email: ${requestData.volunteer_person_id}`);
+    console.warn(`Volunteer person not found or has no email: ${requestData.volunteerPersonId}`);
     return null;
   }
 
-  const memberEmail = requestData.member_email;
+  const memberEmail = requestData.memberEmail;
 
-  const intendedRecipients = [{ full_name: volunteer.full_name, email: volunteer.email }];
+  const intendedRecipients = [{ fullName: volunteer.fullName, email: volunteer.email }];
   if (memberEmail) {
-    intendedRecipients.push({ full_name: requestData.member_name, email: memberEmail });
+    intendedRecipients.push({ fullName: requestData.memberName, email: memberEmail });
   }
 
   if (testConfig.overrideRecipients) {
@@ -265,7 +265,7 @@ async function resolveRecipientsForConfirmedRequest(requestData) {
       // extra email and recording a member recipient prod would never notify.
       memberEmail: memberEmail ? testConfig.overrideRecipients.join(', ') : null,
       volunteer,
-      memberName: requestData.member_name,
+      memberName: requestData.memberName,
       intendedRecipients,
       isTestMode: true,
     };
@@ -275,7 +275,7 @@ async function resolveRecipientsForConfirmedRequest(requestData) {
     volunteerEmail: volunteer.email,
     memberEmail: memberEmail || null,
     volunteer,
-    memberName: requestData.member_name,
+    memberName: requestData.memberName,
     intendedRecipients: null,
     isTestMode: false,
   };
@@ -284,14 +284,14 @@ async function resolveRecipientsForConfirmedRequest(requestData) {
 async function resolveRecipientsForCancelledRequest(requestData) {
   const testConfig = getTestConfig();
 
-  const volunteer = await getPerson(requestData.volunteer_person_id);
+  const volunteer = await getPerson(requestData.volunteerPersonId);
 
   if (!volunteer || !volunteer.email) {
-    console.warn(`Volunteer person not found or has no email: ${requestData.volunteer_person_id}`);
+    console.warn(`Volunteer person not found or has no email: ${requestData.volunteerPersonId}`);
     return null;
   }
 
-  const intendedRecipients = [{ full_name: volunteer.full_name, email: volunteer.email }];
+  const intendedRecipients = [{ fullName: volunteer.fullName, email: volunteer.email }];
 
   if (testConfig.overrideRecipients) {
     console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
@@ -326,45 +326,45 @@ async function pollOnce() {
 
   for (const event of events) {
     try {
-      console.log(`[${new Date().toISOString()}] Processing event #${event.id} (${event.event_type}) for SR #${event.service_request_id}`);
-      const requestData = await getServiceRequest(event.service_request_id);
+      console.log(`[${new Date().toISOString()}] Processing event #${event.id} (${event.eventType}) for SR #${event.serviceRequestId}`);
+      const requestData = await getServiceRequest(event.serviceRequestId);
 
       if (!requestData) {
-        console.error(`Service request not found: ${event.service_request_id}`);
+        console.error(`Service request not found: ${event.serviceRequestId}`);
         await markNotificationFailed(event.id);
         failed++;
         continue;
       }
 
-      const routing = deriveRecipientsForEvent(event.event_type, requestData);
+      const routing = deriveRecipientsForEvent(event.eventType, requestData);
       const recipientPersonIds = [];
 
-      // Legacy service requests carry a request_number from the old system that
+      // Legacy service requests carry a requestNumber from the old system that
       // volunteers recognize; show it in the subject when present, otherwise the
       // new database id.
-      const subjectNumber = requestData.request_number || requestData.id;
+      const subjectNumber = requestData.requestNumber || requestData.id;
 
       if (routing.sendToBccVolunteers) {
         const recipients = await resolveRecipientsForOpenRequest(requestData);
         if (recipients) {
           const { subject, description: openDescription } = await buildOpenSubjectAndDescription({
             subjectNumber,
-            memberName: requestData.member_name,
-            startAt: requestData.start_at,
+            memberName: requestData.memberName,
+            startAt: requestData.startAt,
             description: requestData.description,
-            serviceRequestId: event.service_request_id,
-            requestNumber: requestData.request_number,
+            serviceRequestId: event.serviceRequestId,
+            requestNumber: requestData.requestNumber,
             isTestMode: recipients.isTestMode,
             getPriorOpenCountFn: getPriorOpenCount,
           });
           const openRequestData = openDescription !== requestData.description
             ? { ...requestData, description: openDescription }
             : requestData;
-          const html = getOpenRequestTemplate(requestData.service_name, 'Volunteer', openRequestData);
+          const html = getOpenRequestTemplate(requestData.serviceName, 'Volunteer', openRequestData);
           let finalHtml = html;
           if (recipients.isTestMode) {
             const intendedStr = (recipients.intendedVolunteers || [])
-              .map(v => `${v.full_name} (${v.email})`).join('<br>');
+              .map(v => `${v.fullName} (${v.email})`).join('<br>');
             finalHtml = applyTestBanner(html, intendedStr);
           }
           const result = await sendEmail({ bcc: recipients.bcc, subject, html: finalHtml });
@@ -383,19 +383,19 @@ async function pollOnce() {
           failed++;
         }
 
-      } else if (routing.sendToVolunteer && event.event_type === 'confirmed') {
+      } else if (routing.sendToVolunteer && event.eventType === 'confirmed') {
         const recipients = await resolveRecipientsForConfirmedRequest(requestData);
         if (recipients) {
-          const baseSubject = `SR Conf #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+          const baseSubject = `SR Conf #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
           const subject = buildSubject(baseSubject, recipients.isTestMode);
-          const volunteerHtml = getConfirmedRequestTemplate(requestData.service_name, getFirstName(recipients.volunteer.full_name), requestData);
-          const memberHtml = getMemberConfirmedTemplate(requestData.service_name, getFirstName(recipients.memberName), recipients.volunteer, requestData);
+          const volunteerHtml = getConfirmedRequestTemplate(requestData.serviceName, getFirstName(recipients.volunteer.fullName), requestData);
+          const memberHtml = getMemberConfirmedTemplate(requestData.serviceName, getFirstName(recipients.memberName), recipients.volunteer, requestData);
 
           let finalVolunteerHtml = volunteerHtml;
           let finalMemberHtml = memberHtml;
           if (recipients.isTestMode) {
             const intendedStr = (recipients.intendedRecipients || [])
-              .map(r => `${r.full_name} (${r.email})`).join('<br>');
+              .map(r => `${r.fullName} (${r.email})`).join('<br>');
             finalVolunteerHtml = applyTestBanner(volunteerHtml, intendedStr);
             finalMemberHtml = applyTestBanner(memberHtml, intendedStr);
           }
@@ -412,7 +412,7 @@ async function pollOnce() {
             const memberResult = await sendEmail({ to: recipients.memberEmail, subject, html: finalMemberHtml });
             if (memberResult.success) {
               console.log(`[${new Date().toISOString()}] Member email sent: ${subject}`);
-              if (requestData.member_person_id) recipientPersonIds.push(Number(requestData.member_person_id));
+              if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));
             } else {
               console.error(`[${new Date().toISOString()}] Failed to send member email: ${memberResult.error}`);
             }
@@ -430,24 +430,24 @@ async function pollOnce() {
           failed++;
         }
 
-      } else if (event.event_type === 'cancelled') {
+      } else if (event.eventType === 'cancelled') {
         // The cancellation notice in the samples goes to the volunteer who was
         // confirmed for the request. With no confirmed volunteer there is no one
         // to notify, so the event is complete with no recipients.
-        if (!requestData.volunteer_person_id) {
+        if (!requestData.volunteerPersonId) {
           console.log(`[${new Date().toISOString()}] SR #${requestData.id} cancelled with no confirmed volunteer; nothing to send`);
           await markNotificationSent(event.id, recipientPersonIds);
           sent++;
         } else {
           const recipients = await resolveRecipientsForCancelledRequest(requestData);
           if (recipients) {
-            const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.member_name}-Service Date: ${formatDateForSubject(requestData.start_at)}`;
+            const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
             const subject = buildSubject(baseSubject, recipients.isTestMode);
-            const html = buildCancelledTemplate(getFirstName(recipients.volunteer.full_name), requestData);
+            const html = buildCancelledTemplate(getFirstName(recipients.volunteer.fullName), requestData);
             let finalHtml = html;
             if (recipients.isTestMode) {
               const intendedStr = (recipients.intendedRecipients || [])
-                .map(r => `${r.full_name} (${r.email})`).join('<br>');
+                .map(r => `${r.fullName} (${r.email})`).join('<br>');
               finalHtml = applyTestBanner(html, intendedStr);
             }
             const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml });
@@ -467,13 +467,13 @@ async function pollOnce() {
           }
         }
 
-      } else if (event.event_type === 'reminder') {
-        console.warn(`[${new Date().toISOString()}] No template yet for event_type=${event.event_type}, marking failed`);
+      } else if (event.eventType === 'reminder') {
+        console.warn(`[${new Date().toISOString()}] No template yet for eventType=${event.eventType}, marking failed`);
         await markNotificationFailed(event.id);
         failed++;
 
       } else {
-        console.warn(`[${new Date().toISOString()}] Unknown event_type=${event.event_type}`);
+        console.warn(`[${new Date().toISOString()}] Unknown eventType=${event.eventType}`);
         await markNotificationFailed(event.id);
         failed++;
       }

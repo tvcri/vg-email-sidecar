@@ -16,7 +16,7 @@ test('formatDateForSubject renders M/D/YYYY in Eastern time', () => {
 });
 
 test('buildSubject prefixes CORRECTED and uses the SR Request format', () => {
-  const subject = buildSubject({ id: 1530, member_name: 'McGaw, Lee', start_at: '2026-07-02T04:00:00Z' });
+  const subject = buildSubject({ id: 1530, memberName: 'McGaw, Lee', startAt: '2026-07-02T04:00:00Z' });
   assert.equal(subject, 'CORRECTED: SR Request #1530-For McGaw, Lee-Service Date: 7/2/2026');
 });
 
@@ -45,8 +45,8 @@ test('injectCorrectionNotice throws when the anchor is absent', () => {
 test('injectTestBanner lists intended recipients before the closing table', () => {
   const html = "<body>X</table>\n      </td>\n    </tr>\n  </table>\n</body>";
   const out = injectTestBanner(html, [
-    { full_name: 'Neill Barber', email: 'neill@example.com' },
-    { full_name: 'Linda Flinton', email: 'linda@example.com' },
+    { fullName: 'Neill Barber', email: 'neill@example.com' },
+    { fullName: 'Linda Flinton', email: 'linda@example.com' },
   ]);
   assert.match(out, /TEST MODE:/);
   assert.match(out, /Neill Barber \(neill@example.com\)/);
