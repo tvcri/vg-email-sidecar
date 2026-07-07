@@ -23,6 +23,7 @@ const {
   buildErrandsMemberConfirmedTemplate,
   buildTechSupportMemberConfirmedTemplate,
   buildCancelledTemplate,
+  buildMemberCancelledTemplate,
 } = require('./templates');
 
 const SERVICE_TYPE_TO_CAPABILITY = {
@@ -284,28 +285,41 @@ async function resolveRecipientsForConfirmedRequest(requestData) {
 async function resolveRecipientsForCancelledRequest(requestData) {
   const testConfig = getTestConfig();
 
-  const volunteer = await getPerson(requestData.volunteerPersonId);
+  const volunteer = requestData.volunteerPersonId
+    ? await getPerson(requestData.volunteerPersonId)
+    : null;
 
-  if (!volunteer || !volunteer.email) {
+  if (requestData.volunteerPersonId && (!volunteer || !volunteer.email)) {
     console.warn(`Volunteer person not found or has no email: ${requestData.volunteerPersonId}`);
-    return null;
   }
 
-  const intendedRecipients = [{ fullName: volunteer.fullName, email: volunteer.email }];
+  const memberEmail = requestData.memberEmail;
+
+  const intendedRecipients = [];
+  if (volunteer && volunteer.email) {
+    intendedRecipients.push({ fullName: volunteer.fullName, email: volunteer.email });
+  }
+  if (memberEmail) {
+    intendedRecipients.push({ fullName: requestData.memberName, email: memberEmail });
+  }
 
   if (testConfig.overrideRecipients) {
     console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
     return {
-      volunteerEmail: testConfig.overrideRecipients.join(', '),
+      volunteerEmail: (volunteer && volunteer.email) ? testConfig.overrideRecipients.join(', ') : null,
+      memberEmail: memberEmail ? testConfig.overrideRecipients.join(', ') : null,
       volunteer,
+      memberName: requestData.memberName,
       intendedRecipients,
       isTestMode: true,
     };
   }
 
   return {
-    volunteerEmail: volunteer.email,
+    volunteerEmail: (volunteer && volunteer.email) ? volunteer.email : null,
+    memberEmail: memberEmail || null,
     volunteer,
+    memberName: requestData.memberName,
     intendedRecipients: null,
     isTestMode: false,
   };
@@ -394,10 +408,15 @@ async function pollOnce() {
           let finalVolunteerHtml = volunteerHtml;
           let finalMemberHtml = memberHtml;
           if (recipients.isTestMode) {
-            const intendedStr = (recipients.intendedRecipients || [])
-              .map(r => `${r.fullName} (${r.email})`).join('<br>');
-            finalVolunteerHtml = applyTestBanner(volunteerHtml, intendedStr);
-            finalMemberHtml = applyTestBanner(memberHtml, intendedStr);
+            // Each email's banner should name only its own actual intended
+            // recipient, not the combined list of everyone notified for this event.
+            const [volunteerIntended, memberIntended] = recipients.intendedRecipients || [];
+            if (volunteerIntended) {
+              finalVolunteerHtml = applyTestBanner(volunteerHtml, `${volunteerIntended.fullName} (${volunteerIntended.email})`);
+            }
+            if (memberIntended) {
+              finalMemberHtml = applyTestBanner(memberHtml, `${memberIntended.fullName} (${memberIntended.email})`);
+            }
           }
 
           const volunteerResult = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalVolunteerHtml });
@@ -431,40 +450,56 @@ async function pollOnce() {
         }
 
       } else if (event.eventType === 'cancelled') {
-        // The cancellation notice in the samples goes to the volunteer who was
-        // confirmed for the request. With no confirmed volunteer there is no one
-        // to notify, so the event is complete with no recipients.
-        if (!requestData.volunteerPersonId) {
-          console.log(`[${new Date().toISOString()}] SR #${requestData.id} cancelled with no confirmed volunteer; nothing to send`);
+        const recipients = await resolveRecipientsForCancelledRequest(requestData);
+        const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
+        const subject = buildSubject(baseSubject, recipients.isTestMode);
+
+        // Each email's banner should name only its own actual intended
+        // recipient, not the combined list of everyone notified for this event.
+        const volunteerIntended = recipients.volunteer
+          ? (recipients.intendedRecipients || []).find(r => r.email === recipients.volunteer.email)
+          : null;
+        const memberIntended = (recipients.intendedRecipients || []).find(r => r.fullName === recipients.memberName);
+
+        let anySuccess = false;
+
+        if (routing.sendToVolunteer && recipients.volunteerEmail) {
+          const html = buildCancelledTemplate(getFirstName(recipients.volunteer.fullName), requestData);
+          const finalHtml = recipients.isTestMode && volunteerIntended
+            ? applyTestBanner(html, `${volunteerIntended.fullName} (${volunteerIntended.email})`)
+            : html;
+          const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml });
+          if (result.success) {
+            console.log(`[${new Date().toISOString()}] Volunteer cancellation email sent: ${subject}`);
+            recipientPersonIds.push(recipients.volunteer.id);
+            anySuccess = true;
+          } else {
+            console.error(`[${new Date().toISOString()}] Failed to send volunteer cancellation email: ${result.error}`);
+          }
+        }
+
+        if (routing.sendToMember && recipients.memberEmail) {
+          const html = buildMemberCancelledTemplate(getFirstName(recipients.memberName), requestData);
+          const finalHtml = recipients.isTestMode && memberIntended
+            ? applyTestBanner(html, `${memberIntended.fullName} (${memberIntended.email})`)
+            : html;
+          const result = await sendEmail({ to: recipients.memberEmail, subject, html: finalHtml });
+          if (result.success) {
+            console.log(`[${new Date().toISOString()}] Member cancellation email sent: ${subject}`);
+            if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));
+            anySuccess = true;
+          } else {
+            console.error(`[${new Date().toISOString()}] Failed to send member cancellation email: ${result.error}`);
+          }
+        }
+
+        if (anySuccess) {
           await markNotificationSent(event.id, recipientPersonIds);
           sent++;
         } else {
-          const recipients = await resolveRecipientsForCancelledRequest(requestData);
-          if (recipients) {
-            const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
-            const subject = buildSubject(baseSubject, recipients.isTestMode);
-            const html = buildCancelledTemplate(getFirstName(recipients.volunteer.fullName), requestData);
-            let finalHtml = html;
-            if (recipients.isTestMode) {
-              const intendedStr = (recipients.intendedRecipients || [])
-                .map(r => `${r.fullName} (${r.email})`).join('<br>');
-              finalHtml = applyTestBanner(html, intendedStr);
-            }
-            const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml });
-            if (result.success) {
-              console.log(`[${new Date().toISOString()}] Cancellation email sent: ${subject}`);
-              recipientPersonIds.push(recipients.volunteer.id);
-              await markNotificationSent(event.id, recipientPersonIds);
-              sent++;
-            } else {
-              console.error(`[${new Date().toISOString()}] Failed to send cancellation email: ${result.error}`);
-              await markNotificationFailed(event.id);
-              failed++;
-            }
-          } else {
-            await markNotificationFailed(event.id);
-            failed++;
-          }
+          console.warn(`[${new Date().toISOString()}] SR #${requestData.id} cancelled but no recipients could be emailed`);
+          await markNotificationFailed(event.id);
+          failed++;
         }
 
       } else if (event.eventType === 'reminder') {
