@@ -1,14 +1,16 @@
-// Service request datetimes are stored in the DB as UTC. Emails are read by
-// Rhode Island volunteers, so all times/dates must be displayed in Eastern time.
-// Pin the timeZone explicitly so rendering is correct regardless of the server's
-// own timezone (the production host runs as UTC).
-const DISPLAY_TIME_ZONE = 'America/New_York';
-
-function formatDateOnly(isoDateTime) {
-  if (!isoDateTime) return '';
-  const date = new Date(isoDateTime);
-  return date.toLocaleString('en-US', {
-    timeZone: DISPLAY_TIME_ZONE,
+// service_request.serviceDate and the TIME columns (startTime, finishTime,
+// apptTime, returnTime) are wall-clock civil values, not instants - they are
+// already in Eastern local time and carry no timezone of their own. Never
+// construct a JS Date from them or timezone-convert them; parse the calendar
+// fields directly. queries.js casts serviceDate with DATE_FORMAT(...) in SQL
+// (matching village-green's own API) so mysql2 hands back a plain
+// 'YYYY-MM-DD' string instead of auto-hydrating a DATE column into a JS Date
+// at server-local midnight. The TIME columns arrive as 'HH:MM:SS' strings.
+function formatServiceDate(serviceDate) {
+  if (!serviceDate) return '';
+  const [year, month, day] = serviceDate.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleString('en-US', {
+    timeZone: 'UTC',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -16,15 +18,14 @@ function formatDateOnly(isoDateTime) {
   });
 }
 
-function formatTimeOnly(isoDateTime) {
-  if (!isoDateTime) return '';
-  const date = new Date(isoDateTime);
-  return date.toLocaleString('en-US', {
-    timeZone: DISPLAY_TIME_ZONE,
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
+function formatCivilTime(timeString) {
+  if (!timeString) return '';
+  const [hourStr, minuteStr] = timeString.split(':');
+  const hour24 = Number(hourStr);
+  const minute = Number(minuteStr);
+  const period = hour24 < 12 ? 'AM' : 'PM';
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
 function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
@@ -235,19 +236,21 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
     state,
     zip,
     destination,
-    startAt,
+    serviceDate,
+    timesFlexible,
+    startTime,
     apptTime,
     returnTime,
-    finishAt,
+    finishTime,
     transportationType,
     serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(startAt);
-  const pickupTime = formatTimeOnly(startAt);
-  const appointmentTime = formatTimeOnly(apptTime);
-  const returnPickupTime = formatTimeOnly(returnTime);
-  const dropoffTime = formatTimeOnly(finishAt);
+  const startDate = formatServiceDate(serviceDate);
+  const pickupTime = formatCivilTime(startTime);
+  const appointmentTime = formatCivilTime(apptTime);
+  const returnPickupTime = formatCivilTime(returnTime);
+  const dropoffTime = formatCivilTime(finishTime);
 
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
@@ -280,7 +283,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Hello,<br><br>
                     The Village Common of RI is seeking someone to provide ${serviceName} for ${memberName}<br>
-                    on ${startDate}.<br>
+                    on ${startDate}${timesFlexible ? ' (times flexible)' : ''}.<br>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
@@ -375,10 +378,12 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
     state,
     zip,
     destination,
-    startAt,
+    serviceDate,
+    timesFlexible,
+    startTime,
     apptTime,
     returnTime,
-    finishAt,
+    finishTime,
     transportationType,
     serviceNotes,
     emergencyContactName,
@@ -386,11 +391,11 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
     emergencyContactPhone,
   } = requestData;
 
-  const startDate = formatDateOnly(startAt);
-  const pickupTime = formatTimeOnly(startAt);
-  const appointmentTime = formatTimeOnly(apptTime);
-  const returnPickupTime = formatTimeOnly(returnTime);
-  const dropoffTime = formatTimeOnly(finishAt);
+  const startDate = formatServiceDate(serviceDate);
+  const pickupTime = formatCivilTime(startTime);
+  const appointmentTime = formatCivilTime(apptTime);
+  const returnPickupTime = formatCivilTime(returnTime);
+  const dropoffTime = formatCivilTime(finishTime);
 
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
@@ -434,7 +439,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                           </tr>
                           <tr>
                             <td>Date:</td>
-                            <td>${startDate}</td>
+                            <td>${startDate}${timesFlexible ? ' (times flexible)' : ''}</td>
                           </tr>
                           <tr>
                             <td valign='top'>Requesting Member:</td>
@@ -528,12 +533,12 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
     state,
     zip,
     destination,
-    startAt,
+    serviceDate,
     transportationType,
     serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(startAt);
+  const startDate = formatServiceDate(serviceDate);
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
@@ -643,7 +648,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
     state,
     zip,
     destination,
-    startAt,
+    serviceDate,
     transportationType,
     serviceNotes,
     emergencyContactName,
@@ -651,7 +656,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
     emergencyContactPhone,
   } = requestData;
 
-  const startDate = formatDateOnly(startAt);
+  const startDate = formatServiceDate(serviceDate);
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `cell: ${memberCell}` : ''}`
     : '';
@@ -945,19 +950,21 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
     state,
     zip,
     destination,
-    startAt,
+    serviceDate,
+    timesFlexible,
+    startTime,
     apptTime,
     returnTime,
-    finishAt,
+    finishTime,
     transportationType,
     serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(startAt);
-  const pickupTime = formatTimeOnly(startAt);
-  const appointmentTime = formatTimeOnly(apptTime);
-  const returnPickupTime = formatTimeOnly(returnTime);
-  const dropoffTime = formatTimeOnly(finishAt);
+  const startDate = formatServiceDate(serviceDate);
+  const pickupTime = formatCivilTime(startTime);
+  const appointmentTime = formatCivilTime(apptTime);
+  const returnPickupTime = formatCivilTime(returnTime);
+  const dropoffTime = formatCivilTime(finishTime);
 
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
@@ -1005,7 +1012,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                           </tr>
                           <tr>
                             <td>Date:</td>
-                            <td>${startDate}</td>
+                            <td>${startDate}${timesFlexible ? ' (times flexible)' : ''}</td>
                           </tr>
                           ${pickupTime ? `<tr>
                             <td valign='top'>Initial Pickup Time</td>
@@ -1158,12 +1165,12 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
     state,
     zip,
     destination,
-    startAt,
+    serviceDate,
     transportationType,
     serviceNotes,
   } = requestData;
 
-  const startDate = formatDateOnly(startAt);
+  const startDate = formatServiceDate(serviceDate);
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
     : (destination || '');
@@ -1337,7 +1344,7 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
 
 // Volunteer-facing cancellation notice. Cancellation notices are identical
 // across all service types in the samples: only the Service value and
-// whether a time is shown vary. Rides include the pickup time (startAt);
+// whether a time is shown vary. Rides include the pickup time (startTime);
 // the other service types are flexible and show the date only.
 function buildCancelledTemplate(recipientFirstName, requestData) {
   const {
@@ -1348,11 +1355,12 @@ function buildCancelledTemplate(recipientFirstName, requestData) {
     memberCity,
     memberState,
     memberZip,
-    startAt,
+    serviceDate,
+    startTime,
   } = requestData;
 
-  const dateOnly = formatDateOnly(startAt);
-  const timeOnly = formatTimeOnly(startAt);
+  const dateOnly = formatServiceDate(serviceDate);
+  const timeOnly = formatCivilTime(startTime);
   // Rides show date and pickup time; other service types show the date only.
   const dateTime = serviceName && serviceName.startsWith('Ride:') && timeOnly
     ? `${dateOnly} ${timeOnly}`
@@ -1442,10 +1450,10 @@ function buildCancelledTemplate(recipientFirstName, requestData) {
 // sample exactly, including the "if a volunteer was confirmed" line, which
 // is shown unconditionally regardless of whether one was actually assigned.
 function buildMemberCancelledTemplate(memberFirstName, requestData) {
-  const { serviceName, status, startAt } = requestData;
+  const { serviceName, status, serviceDate, startTime } = requestData;
 
-  const dateOnly = formatDateOnly(startAt);
-  const timeOnly = formatTimeOnly(startAt);
+  const dateOnly = formatServiceDate(serviceDate);
+  const timeOnly = formatCivilTime(startTime);
   const dateTime = serviceName && serviceName.startsWith('Ride:') && timeOnly
     ? `${dateOnly} ${timeOnly}`
     : dateOnly;

@@ -39,18 +39,13 @@ const SERVICE_TYPE_TO_CAPABILITY = {
   'Errand: Other': 'Errands',
 };
 
-// Service dates are stored as UTC; the subject must show the Eastern-time date so
-// it matches the body and the volunteer's local date (the server runs as UTC).
-function formatDateForSubject(isoDateTime) {
-  if (!isoDateTime) return '';
-  const date = new Date(isoDateTime);
-  // en-US M/D/YYYY in Eastern time.
-  return date.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-  });
+// service_request.serviceDate is a wall-clock civil date ('YYYY-MM-DD'), not an
+// instant - it is already the correct calendar day and must never be run through
+// new Date(isoString) + a timeZone option (see templates.js for the same trap).
+function formatDateForSubject(serviceDate) {
+  if (!serviceDate) return '';
+  const [year, month, day] = serviceDate.split('-').map(Number);
+  return `${month}/${day}/${year}`;
 }
 
 function getFirstName(fullName) {
@@ -139,7 +134,7 @@ function buildSubject(baseSubject, isTestMode) {
   return isTestMode ? `[TEST] ${baseSubject}` : baseSubject;
 }
 
-async function buildOpenSubjectAndDescription({ subjectNumber, memberName, startAt, description, serviceRequestId, requestNumber, isTestMode, getPriorOpenCountFn }) {
+async function buildOpenSubjectAndDescription({ subjectNumber, memberName, serviceDate, description, serviceRequestId, requestNumber, isTestMode, getPriorOpenCountFn }) {
   const dbCount = await getPriorOpenCountFn(serviceRequestId);
   // Legacy SRs (non-null requestNumber) had their first notification in the old system;
   // add 1 so the ordinal accounts for that presumed-sent original.
@@ -152,7 +147,7 @@ async function buildOpenSubjectAndDescription({ subjectNumber, memberName, start
   const subjectOrdinal = SUBJECT_ORDINALS[priorCount] ?? null;
   const bodyPrefix = BODY_ORDINALS[priorCount] ?? null;
 
-  const dateStr = formatDateForSubject(startAt);
+  const dateStr = formatDateForSubject(serviceDate);
   const baseSubject = `${subjectOrdinal ? subjectOrdinal + ' ' : ''}SR Request #${subjectNumber}-For ${memberName}-Service Date: ${dateStr}`;
   const subject = buildSubject(baseSubject, isTestMode);
 
@@ -364,7 +359,7 @@ async function pollOnce() {
           const { subject, description: openDescription } = await buildOpenSubjectAndDescription({
             subjectNumber,
             memberName: requestData.memberName,
-            startAt: requestData.startAt,
+            serviceDate: requestData.serviceDate,
             description: requestData.description,
             serviceRequestId: event.serviceRequestId,
             requestNumber: requestData.requestNumber,
@@ -400,7 +395,7 @@ async function pollOnce() {
       } else if (routing.sendToVolunteer && event.eventType === 'confirmed') {
         const recipients = await resolveRecipientsForConfirmedRequest(requestData);
         if (recipients) {
-          const baseSubject = `SR Conf #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
+          const baseSubject = `SR Conf #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.serviceDate)}`;
           const subject = buildSubject(baseSubject, recipients.isTestMode);
           const volunteerHtml = getConfirmedRequestTemplate(requestData.serviceName, getFirstName(recipients.volunteer.fullName), requestData);
           const memberHtml = getMemberConfirmedTemplate(requestData.serviceName, getFirstName(recipients.memberName), recipients.volunteer, requestData);
@@ -451,7 +446,7 @@ async function pollOnce() {
 
       } else if (event.eventType === 'cancelled') {
         const recipients = await resolveRecipientsForCancelledRequest(requestData);
-        const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
+        const baseSubject = `SR Cancel #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.serviceDate)}`;
         const subject = buildSubject(baseSubject, recipients.isTestMode);
 
         // Each email's banner should name only its own actual intended

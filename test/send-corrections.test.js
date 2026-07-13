@@ -7,16 +7,13 @@ const {
   injectTestBanner,
 } = require('../src/send-corrections.js');
 
-test('formatDateForSubject renders M/D/YYYY in Eastern time', () => {
-  // 2026-07-02 04:00:00 UTC == 2026-07-02 00:00 EDT -> same calendar day.
-  assert.equal(formatDateForSubject('2026-07-02T04:00:00Z'), '7/2/2026');
-  // 2026-07-02 02:00:00 UTC == 2026-07-01 22:00 EDT -> previous day in Eastern.
-  assert.equal(formatDateForSubject('2026-07-02T02:00:00Z'), '7/1/2026');
+test('formatDateForSubject renders M/D/YYYY from the civil serviceDate string', () => {
+  assert.equal(formatDateForSubject('2026-07-02'), '7/2/2026');
   assert.equal(formatDateForSubject(null), '');
 });
 
 test('buildSubject prefixes CORRECTED and uses the SR Request format', () => {
-  const subject = buildSubject({ id: 1530, memberName: 'McGaw, Lee', startAt: '2026-07-02T04:00:00Z' });
+  const subject = buildSubject({ id: 1530, memberName: 'McGaw, Lee', serviceDate: '2026-07-02' });
   assert.equal(subject, 'CORRECTED: SR Request #1530-For McGaw, Lee-Service Date: 7/2/2026');
 });
 

@@ -10,14 +10,15 @@ const ridesRequest = {
   memberCity: 'Providence',
   memberState: 'RI',
   memberZip: '02903',
-  startAt: '2025-12-29T14:00:00Z',
+  serviceDate: '2025-12-29',
+  startTime: '09:00:00',
 }
 
 const errandsRequest = {
   serviceName: 'Errand: Pick up/delivery',
   status: 'Member cancelled',
   memberName: 'Zelda Blow',
-  startAt: '2025-12-29T14:00:00Z',
+  serviceDate: '2025-12-29',
 }
 
 test('buildMemberCancelledTemplate greets the member and states the cancellation', () => {
