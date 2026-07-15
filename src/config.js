@@ -10,9 +10,7 @@ function getDbConfig() {
 
 function getGmailConfig() {
   return {
-    tokenPath: process.env.GMAIL_TOKEN_PATH || './services-mailer-token.json',
-    fromAddress: 'services@villagecommonri.org',
-    fromName: 'The Village Common of RI',
+    saKeyPath: process.env.GMAIL_SA_KEY_PATH || './vg-mailer-sa-key.json',
   };
 }
 

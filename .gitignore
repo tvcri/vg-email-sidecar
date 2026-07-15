@@ -32,7 +32,8 @@ yarn-error.log*
 dist/
 build/
 
-services-mailer-token.json
+vg-mailer-sa-key.json
+*-sa-key.json
 
 # Service-request recovery utility (contains member PII)
 Recovery_emails.eml

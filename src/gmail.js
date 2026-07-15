@@ -4,15 +4,30 @@ const { getGmailConfig } = require('./config');
 
 const FROM_ADDRESS = 'services@villagecommonri.org';
 const FROM_NAME = 'The Village Common of RI';
+const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 
-function buildAuthClient() {
-  const { tokenPath } = getGmailConfig();
-  const { client_id, client_secret, refresh_token } = JSON.parse(
-    fs.readFileSync(tokenPath, 'utf8')
+// One JWT client per impersonated mailbox: subject is fixed at construction.
+// Domain-wide delegation lets the service account send as any domain mailbox.
+const authClients = new Map();
+
+function buildAuthClient(mailbox) {
+  const { saKeyPath } = getGmailConfig();
+  const { client_email, private_key } = JSON.parse(
+    fs.readFileSync(saKeyPath, 'utf8')
   );
-  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret);
-  oAuth2Client.setCredentials({ refresh_token });
-  return oAuth2Client;
+  return new google.auth.JWT({
+    email: client_email,
+    key: private_key,
+    scopes: [GMAIL_SEND_SCOPE],
+    subject: mailbox,
+  });
+}
+
+function getAuthClient(mailbox) {
+  if (!authClients.has(mailbox)) {
+    authClients.set(mailbox, buildAuthClient(mailbox));
+  }
+  return authClients.get(mailbox);
 }
 
 function encodeHeader(text) {
@@ -49,11 +64,11 @@ function buildRawMessage({ to, bcc, subject, html, from }) {
 }
 
 function verifyCredentials() {
-  const { tokenPath } = getGmailConfig();
-  const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8')); // throws if missing/unreadable
-  const missing = ['client_id', 'client_secret', 'refresh_token'].filter(k => !token[k]);
+  const { saKeyPath } = getGmailConfig();
+  const key = JSON.parse(fs.readFileSync(saKeyPath, 'utf8')); // throws if missing/unreadable
+  const missing = ['client_email', 'private_key'].filter(k => !key[k]);
   if (missing.length > 0) {
-    console.warn(`Gmail token file is missing required fields: ${missing.join(', ')}`);
+    console.warn(`Service-account key file is missing required fields: ${missing.join(', ')}`);
     return false;
   }
   return true;
@@ -61,7 +76,7 @@ function verifyCredentials() {
 
 async function sendEmail({ to, bcc, subject, html }) {
   try {
-    const auth = buildAuthClient();
+    const auth = getAuthClient(FROM_ADDRESS);
     const gmail = google.gmail({ version: 'v1', auth });
 
     const raw = buildRawMessage({
