@@ -1,6 +1,9 @@
 # VG Email Sidecar
 
-A long-lived Node.js process that handles outbound email for Village Green's service request emergency feature. The sidecar polls the `email_event` table in the shared database, resolves recipients based on service type and volunteer availability, and sends emails via Gmail.
+A long-lived Node.js process that handles outbound email for Village Green
+service requests. The sidecar polls the `notification_event` table in the
+shared database, resolves recipients based on service type and volunteer
+capabilities, and sends email via the Gmail API (`googleapis` — not SMTP).
 
 ## Setup
 
@@ -23,7 +26,8 @@ npm install
    cp .env.example .env
    ```
 
-2. Ensure `services-mailer-token.json` exists at the path specified by `GMAIL_TOKEN_PATH`. This file should contain:
+2. Ensure `services-mailer-token.json` exists at the path specified by
+   `GMAIL_TOKEN_PATH`. This file should contain:
    ```json
    {
      "client_id": "your-client-id",
@@ -32,7 +36,12 @@ npm install
    }
    ```
 
-3. Database credentials must match the Village Green API setup (same host, user, password, database).
+3. Database credentials must match the Village Green API setup (same host,
+   user, password, database).
+
+4. Optional: set `TEST_RECIPIENTS` (comma-separated emails) to redirect
+   **all** outbound mail to test addresses. Test mode prefixes subjects with
+   `[TEST]` and injects a banner listing the intended real recipients.
 
 ## Running
 
@@ -41,43 +50,54 @@ npm start
 ```
 
 The sidecar will:
-1. Initialize a database connection pool
-2. Run an immediate poll for pending email events
+1. Verify database connectivity and Gmail credentials
+2. Run an immediate poll for pending notification events
 3. Start a recurring poll every 60 seconds (or `POLL_INTERVAL_MS` if configured)
 4. Log all activity to stdout
 
-## Email Flow
+## Event Types and Email Flow
 
-### New Service Request (no volunteer assigned)
+The API writes rows to `notification_event`; the sidecar dispatches on
+`eventType`:
 
-When a `new_request` event is created without a `volunteer_id`:
+### `open` — new/reopened request seeking a volunteer
 
-1. Extract the service type (capability) from `service_name` (e.g., "Ride: Medical Appnt" → "Rides")
-2. Query all volunteers in the request's village with that capability
-3. Send an email to each volunteer requesting participation
-4. Copy the member on the email
-5. Mark the event as sent once all emails succeed (no partial retries)
+1. Map `serviceName` to a capability ("Ride: *" → Rides,
+   "Household Chores/Handy Help" → Home Help, "Tech Support" → Tech Support,
+   "Errand: *" → Errands).
+2. Query all volunteers in the request's village holding that capability.
+3. Send **one email, BCC'd to the whole volunteer pool** (the member is not
+   copied). Subject: `SR Request #<n>-For <member>-Service Date: <date>`,
+   using the legacy `requestNumber` when present, otherwise the DB id.
+4. Repeat opens for the same SR get an ordinal subject prefix (`2nd`, `3rd`,
+   `4th`) and a `SECOND REQUEST` style body prefix; legacy SRs count their
+   presumed-sent original.
 
-**Recipient Mapping:**
-- `service_name` starting with "Ride:" → Capability "Rides"
-- `service_name` == "Household Chores/Handy Help" → Capability "Home Help"
-- `service_name` == "Tech Support" → Capability "Tech Support"
-- `service_name` starting with "Errand:" → Capability "Errands"
+### `confirmed` — volunteer assigned
 
-### Confirmed Service Request (volunteer assigned)
+Sends two differently-templated emails: one to the assigned volunteer, one to
+the member (skipped if the member has no email). Subject: `SR Conf #…`.
 
-When a `patch_request` event is created with a non-null `volunteer_id`:
+### `cancelled`
 
-1. Resolve the assigned volunteer
-2. Send a confirmation email to the volunteer with full request details
-3. Copy the member on the email
-4. Mark the event as sent once the email succeeds
+Notifies the member, and the volunteer if one was assigned.
+Subject: `SR Cancel #…`.
+
+### `reminder`
+
+Routed but **no template exists yet** — events are logged with a warning and
+marked failed. Unknown event types are also marked failed.
 
 ## Error Handling
 
-- **Missing emails**: If a volunteer has no email address, that volunteer's email is skipped (logged as warning). If a member has no email, the entire event fails and will retry indefinitely.
-- **Send failures**: If email sending fails, the `sent_at` field is left NULL, and the event will be retried in the next poll cycle.
-- **Database errors**: Logged and the event is skipped; subsequent events continue processing.
+- **Success:** `sentAt` is stamped and `recipients` records the JSON array of
+  notified person ids.
+- **Failure** (send error, unresolvable recipients, missing service request):
+  `failedAt` is stamped. The pending-events query excludes rows with
+  `failedAt` set, so **failed events are not retried** — clearing `failedAt`
+  manually re-queues a row.
+- **Database errors:** logged; the event is skipped and subsequent events
+  continue processing.
 
 ## Logging
 
@@ -88,50 +108,74 @@ All logs are printed to stdout with ISO timestamps. Format:
 
 ## Graceful Shutdown
 
-The sidecar responds to `SIGTERM` and `SIGINT` signals:
-- Stops the poll loop
-- Closes database connections
-- Exits cleanly
+The sidecar responds to `SIGTERM` and `SIGINT` signals: stops the poll loop,
+closes database connections, and exits cleanly.
 
 ## Database Schema
 
-The sidecar expects the following tables (managed by VG API migrations):
+The sidecar expects these tables (managed by VG API migrations; all VG-native
+columns are **camelCase**):
 
-- `email_event`: event queue with id, event_type, service_request_id, volunteer_id, created_at, sent_at
-- `service_request`: request details with service_name, member_person_id, volunteer_person_id, etc.
-- `volunteer`: volunteer records with person_id
-- `person`: person records with email, phone, address, emergency_contact_* fields
-- `member`: member details with service_notes
-- `volunteer_capability`: volunteer-capability associations
-- `capability`: capability master list (Rides, Errands, Home Help, Tech Support)
+- `notification_event` — the queue: `id, eventType, serviceRequestId,
+  createdAt, sentAt, recipients, failedAt` (`recipients` is written by the
+  sidecar on send)
+- `service_request` — request details (`serviceName`, `memberPersonId`,
+  `volunteerPersonId`, wall-clock `serviceDate`/time columns, …)
+- `person`, `member`, `volunteer` — people and their roles
+- `volunteer_capability`, `capability` — capability associations and master
+  list (Rides, Errands, Home Help, Tech Support)
+
+**Date/time caution:** `serviceDate` and the time columns are wall-clock
+civil values (`YYYY-MM-DD`, `HH:MM:SS`), not instants. The formatters in
+`src/templates.js` and `src/email-processor.js` parse them as plain strings —
+never run them through `new Date(isoString)` or timezone conversion.
+
+## Testing
+
+```bash
+npm test    # node --test over test/*.test.js
+```
+
+Tests cover the pure pieces: template builders, subject/ordinal logic,
+recipient derivation. There is no DB or Gmail integration harness.
 
 ## Troubleshooting
 
-### "Pool not initialized" error
-Ensure the database connection parameters are correct and the database is accessible.
-
 ### Gmail send failures
-Check that `GMAIL_TOKEN_PATH` points to a valid `services-mailer-token.json` with valid OAuth credentials. The refresh token may have expired; regenerate via the oauth-dance script.
+Check that `GMAIL_TOKEN_PATH` points to a valid `services-mailer-token.json`
+with valid OAuth credentials. The refresh token may have expired; regenerate
+via the oauth-dance script.
 
 ### No emails being sent
-Check `email_event` table for pending rows (WHERE sent_at IS NULL). Verify volunteer capabilities match the mapped capability for the service type. Check logs for warnings about missing emails or unrecognized service types.
+Check `notification_event` for pending rows
+(`WHERE sentAt IS NULL AND failedAt IS NULL`). Rows with `failedAt` set will
+never retry on their own. Verify volunteer capabilities match the mapped
+capability for the service type. Check logs for warnings about missing emails
+or unrecognized service types.
 
 ## Development
 
-The sidecar is written in ES modules. All database queries use `mysql2/promise` for async/await support.
+The sidecar is written in **CommonJS** (`require`). Database access uses
+`mysql2/promise` with a fresh connection per query (`initializePool` is a
+startup connectivity check, not a real pool).
 
 To extend:
-- Add new service type mappings to `SERVICE_TYPE_TO_CAPABILITY` in `src/email-processor.js`
-- Modify email templates by editing `buildNewRequestTemplate()` and `buildPatchRequestTemplate()` functions
-- Adjust poll interval via `POLL_INTERVAL_MS` environment variable
+- New service type mappings: `SERVICE_TYPE_TO_CAPABILITY` in
+  `src/email-processor.js`
+- Email templates: builder functions in `src/templates.js` (one per
+  event-type × service-family combination, e.g.
+  `buildRidesOpenRequestTemplate`, `buildHomeHelpMemberConfirmedTemplate`,
+  `buildCancelledTemplate`)
+- Poll interval: `POLL_INTERVAL_MS` environment variable
 
 ## Service Request Time-Correction Emails (one-off)
 
-Re-sends each `Ride:` service request (`id <= 2003`) as a **CORRECTED** open-request
-email to the same volunteers who originally received it. The original emails showed
-ride times 4 hours ahead of what the Member requested (an old UTC-rendering bug,
-since fixed in `templates.js`); this re-renders the corrected DB rows through the
-current Eastern-time template and prepends a red-framed correction notice.
+Re-sends each `Ride:` service request (`id <= 2003`) as a **CORRECTED**
+open-request email to the same volunteers who originally received it. The
+original emails showed ride times 4 hours ahead of what the Member requested
+(an old UTC-rendering bug, since fixed in `templates.js`); this re-renders
+the corrected DB rows through the current Eastern-time template and prepends
+a red-framed correction notice.
 
 ```bash
 # 1. Dry run — list target SRs and resolved recipients, send nothing:
@@ -144,5 +188,5 @@ node src/send-corrections.js
 node src/send-corrections.js
 ```
 
-Read-only against the DB (no writes, no `email_event` rows). Each SR with no
-matching `Rides` volunteers is skipped with a warning.
+Read-only against the DB (no writes, no `notification_event` rows). Each SR
+with no matching `Rides` volunteers is skipped with a warning.
