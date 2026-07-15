@@ -98,7 +98,7 @@ test('buildOpenSubjectAndDescription: first send, non-test mode', async () => {
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
-    startAt: '2026-06-22T14:00:00Z',
+    serviceDate: '2026-06-22',
     description: 'Member needs a ride.',
     serviceRequestId: 1,
     isTestMode: false,
@@ -112,7 +112,7 @@ test('buildOpenSubjectAndDescription: first send, test mode', async () => {
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
-    startAt: '2026-06-22T14:00:00Z',
+    serviceDate: '2026-06-22',
     description: 'Member needs a ride.',
     serviceRequestId: 1,
     isTestMode: true,
@@ -126,7 +126,7 @@ test('buildOpenSubjectAndDescription: second send, non-test mode', async () => {
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
-    startAt: '2026-06-22T14:00:00Z',
+    serviceDate: '2026-06-22',
     description: 'Member needs a ride.',
     serviceRequestId: 1,
     isTestMode: false,
@@ -140,7 +140,7 @@ test('buildOpenSubjectAndDescription: second send, test mode', async () => {
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
-    startAt: '2026-06-22T14:00:00Z',
+    serviceDate: '2026-06-22',
     description: 'Member needs a ride.',
     serviceRequestId: 1,
     isTestMode: true,
@@ -154,7 +154,7 @@ test('buildOpenSubjectAndDescription: legacy SR first send treated as 2nd reques
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
-    startAt: '2026-06-22T14:00:00Z',
+    serviceDate: '2026-06-22',
     description: 'Member needs a ride.',
     serviceRequestId: 1,
     requestNumber: '27143',
@@ -169,7 +169,7 @@ test('buildOpenSubjectAndDescription: legacy SR second send treated as 3rd reque
   const result = await buildOpenSubjectAndDescription({
     subjectNumber: '27143',
     memberName: 'Mary Lou Foley',
-    startAt: '2026-06-22T14:00:00Z',
+    serviceDate: '2026-06-22',
     description: 'Member needs a ride.',
     serviceRequestId: 1,
     requestNumber: '27143',

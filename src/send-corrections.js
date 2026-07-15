@@ -43,21 +43,17 @@ async function getTargetIds() {
   }
 }
 
-// Eastern M/D/YYYY for the subject line (copied from email-processor.js: the
-// server runs as UTC, so the timezone must be pinned to match the body).
-function formatDateForSubject(isoDateTime) {
-  if (!isoDateTime) return '';
-  const date = new Date(isoDateTime);
-  return date.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-  });
+// service_request.serviceDate is a wall-clock civil date ('YYYY-MM-DD'), not an
+// instant - see the identical helper in email-processor.js. Never run it
+// through new Date(isoString) + a timeZone option.
+function formatDateForSubject(serviceDate) {
+  if (!serviceDate) return '';
+  const [year, month, day] = serviceDate.split('-').map(Number);
+  return `${month}/${day}/${year}`;
 }
 
 function buildSubject(requestData) {
-  return `CORRECTED: SR Request #${requestData.id}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.startAt)}`;
+  return `CORRECTED: SR Request #${requestData.id}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.serviceDate)}`;
 }
 
 // Mirrors resolveRecipientsForOpenRequest in email-processor.js, fixed to the
