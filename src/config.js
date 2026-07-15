@@ -59,11 +59,19 @@ function getTestConfig() {
   };
 }
 
+function getHttpConfig() {
+  return {
+    port: parseInt(process.env.HTTP_PORT || '8125', 10),
+    host: process.env.HTTP_HOST || '127.0.0.1',
+  };
+}
+
 module.exports = {
   getDbConfig,
   getGmailConfig,
   getPollConfig,
   getTestConfig,
+  getHttpConfig,
   getMailboxForKind,
   getMailboxDisplayName,
 };

@@ -4,8 +4,10 @@ const { initializePool, closePool } = require('./db');
 const { pollOnce } = require('./email-processor');
 const { getPollConfig } = require('./config');
 const { verifyCredentials } = require('./gmail');
+const { startHttpListener } = require('./http-listener');
 
 let pollInterval = null;
+let httpServer = null;
 
 async function startSidecar() {
   try {
@@ -24,6 +26,8 @@ async function startSidecar() {
     if (credentialsOk) {
       console.log('Gmail credentials OK');
     }
+
+    httpServer = startHttpListener();
 
     console.log('Running initial poll...');
     await pollOnce();
@@ -48,6 +52,7 @@ async function shutdown() {
   if (pollInterval) {
     clearInterval(pollInterval);
   }
+  if (httpServer) httpServer.close();
   await closePool();
   console.log('Shutdown complete');
   process.exit(0);
