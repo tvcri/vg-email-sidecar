@@ -1,9 +1,7 @@
 const fs = require('fs');
 const { google } = require('googleapis');
-const { getGmailConfig } = require('./config');
+const { getGmailConfig, getMailboxForKind, getMailboxDisplayName } = require('./config');
 
-const FROM_ADDRESS = 'services@villagecommonri.org';
-const FROM_NAME = 'The Village Common of RI';
 const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 
 // One JWT client per impersonated mailbox: subject is fixed at construction.
@@ -74,9 +72,12 @@ function verifyCredentials() {
   return true;
 }
 
-async function sendEmail({ to, bcc, subject, html }) {
+// kind selects the sending mailbox (see MAILBOX_BY_KIND in config.js).
+// Callers never pass a mailbox; omitted/unknown kinds send from services@.
+async function sendEmail({ to, bcc, subject, html, kind }) {
   try {
-    const auth = getAuthClient(FROM_ADDRESS);
+    const mailbox = getMailboxForKind(kind);
+    const auth = getAuthClient(mailbox);
     const gmail = google.gmail({ version: 'v1', auth });
 
     const raw = buildRawMessage({
@@ -84,7 +85,7 @@ async function sendEmail({ to, bcc, subject, html }) {
       bcc,
       subject,
       html,
-      from: `${FROM_NAME} <${FROM_ADDRESS}>`,
+      from: `${getMailboxDisplayName(mailbox)} <${mailbox}>`,
     });
 
     const res = await gmail.users.messages.send({

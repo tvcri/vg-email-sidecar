@@ -376,7 +376,7 @@ async function pollOnce() {
               .map(v => `${v.fullName} (${v.email})`).join('<br>');
             finalHtml = applyTestBanner(html, intendedStr);
           }
-          const result = await sendEmail({ bcc: recipients.bcc, subject, html: finalHtml });
+          const result = await sendEmail({ bcc: recipients.bcc, subject, html: finalHtml, kind: event.eventType });
           if (result.success) {
             console.log(`[${new Date().toISOString()}] Email sent: ${subject}`);
             recipientPersonIds.push(...recipients.resolvedVolunteers.map(v => v.id));
@@ -414,7 +414,7 @@ async function pollOnce() {
             }
           }
 
-          const volunteerResult = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalVolunteerHtml });
+          const volunteerResult = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalVolunteerHtml, kind: event.eventType });
           if (volunteerResult.success) {
             console.log(`[${new Date().toISOString()}] Volunteer email sent: ${subject}`);
             recipientPersonIds.push(recipients.volunteer.id);
@@ -423,7 +423,7 @@ async function pollOnce() {
           }
 
           if (recipients.memberEmail) {
-            const memberResult = await sendEmail({ to: recipients.memberEmail, subject, html: finalMemberHtml });
+            const memberResult = await sendEmail({ to: recipients.memberEmail, subject, html: finalMemberHtml, kind: event.eventType });
             if (memberResult.success) {
               console.log(`[${new Date().toISOString()}] Member email sent: ${subject}`);
               if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));
@@ -463,7 +463,7 @@ async function pollOnce() {
           const finalHtml = recipients.isTestMode && volunteerIntended
             ? applyTestBanner(html, `${volunteerIntended.fullName} (${volunteerIntended.email})`)
             : html;
-          const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml });
+          const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml, kind: event.eventType });
           if (result.success) {
             console.log(`[${new Date().toISOString()}] Volunteer cancellation email sent: ${subject}`);
             recipientPersonIds.push(recipients.volunteer.id);
@@ -478,7 +478,7 @@ async function pollOnce() {
           const finalHtml = recipients.isTestMode && memberIntended
             ? applyTestBanner(html, `${memberIntended.fullName} (${memberIntended.email})`)
             : html;
-          const result = await sendEmail({ to: recipients.memberEmail, subject, html: finalHtml });
+          const result = await sendEmail({ to: recipients.memberEmail, subject, html: finalHtml, kind: event.eventType });
           if (result.success) {
             console.log(`[${new Date().toISOString()}] Member cancellation email sent: ${subject}`);
             if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));

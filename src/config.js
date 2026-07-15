@@ -1,3 +1,34 @@
+const DEFAULT_MAILBOX = 'services@villagecommonri.org';
+const DEFAULT_DISPLAY_NAME = 'The Village Common of RI';
+
+// Sending mailbox per message kind (customer assignments, 2026-07-14).
+// Kinds are notification_event.eventType values plus sidecar-internal kinds
+// (enroll_pin is the webhook PIN send). member_welcome is reserved for a
+// planned event type that has no handler yet. Unlisted kinds -> DEFAULT_MAILBOX.
+const MAILBOX_BY_KIND = {
+  open: 'services@villagecommonri.org',
+  confirmed: 'services@villagecommonri.org',
+  cancelled: 'services@villagecommonri.org',
+  reminder: 'services@villagecommonri.org',
+  enroll_pin: 'village-green@villagecommonri.org',
+  enroll_ineligible: 'village-green@villagecommonri.org',
+  member_welcome: 'volunteer@villagecommonri.org',
+};
+
+const MAILBOX_DISPLAY_NAMES = {
+  'services@villagecommonri.org': 'The Village Common of RI',
+  'village-green@villagecommonri.org': 'Village Green',
+  'volunteer@villagecommonri.org': 'The Village Common of RI',
+};
+
+function getMailboxForKind(kind) {
+  return MAILBOX_BY_KIND[kind] || DEFAULT_MAILBOX;
+}
+
+function getMailboxDisplayName(mailbox) {
+  return MAILBOX_DISPLAY_NAMES[mailbox] || DEFAULT_DISPLAY_NAME;
+}
+
 function getDbConfig() {
   return {
     host: process.env.DB_HOST || 'localhost',
@@ -33,4 +64,6 @@ module.exports = {
   getGmailConfig,
   getPollConfig,
   getTestConfig,
+  getMailboxForKind,
+  getMailboxDisplayName,
 };
