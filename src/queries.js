@@ -1,5 +1,5 @@
 const GET_PENDING_EVENTS = `
-  SELECT id, eventType, serviceRequestId, createdAt
+  SELECT id, eventType, serviceRequestId, payload, createdAt
   FROM notification_event
   WHERE sentAt IS NULL AND failedAt IS NULL
   ORDER BY createdAt ASC
