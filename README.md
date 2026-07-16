@@ -91,6 +91,29 @@ Subject: `SR Cancel #…`.
 Routed but **no template exists yet** — events are logged with a warning and
 marked failed. Unknown event types are also marked failed.
 
+## PIN Webhook (`POST /internal/send-pin`)
+
+Besides polling `notification_event`, the sidecar runs a small HTTP listener
+(default `127.0.0.1:8125`, tunable via `HTTP_PORT`/`HTTP_HOST`) for the
+enrollment **PIN fast path**. The VG API POSTs `{ email, pin, firstName, kind }`
+fire-and-forget; the sidecar emails the plaintext PIN.
+
+**Authentication.** The endpoint requires a static shared-secret bearer:
+
+- Set `VG_ENROLL_SIDECAR_KEY` here to the **same value** as the API's
+  `VG_ENROLL_SIDECAR_KEY`.
+- The API sends `Authorization: Bearer <VG_ENROLL_SIDECAR_KEY>`; the sidecar
+  verifies it with a constant-time compare before reading the body.
+- **Fail-closed:** if `VG_ENROLL_SIDECAR_KEY` is unset here, the listener
+  rejects **every** `/internal/send-pin` request with `401`.
+- On a missing/wrong token the sidecar returns `401 {"error":"unauthorized"}`
+  and logs nothing from the token or body (the body carries the PIN).
+
+This bearer is defense-in-depth. The primary control in production is network
+isolation: run the API and this VM in the same Azure VNet (Regional VNet
+Integration) and restrict the VM's NSG to the integration subnet, so the
+webhook port is not reachable from other tenants at all.
+
 ## Error Handling
 
 - **Success:** `sentAt` is stamped and `recipients` records the JSON array of
