@@ -63,6 +63,9 @@ function getHttpConfig() {
   return {
     port: parseInt(process.env.HTTP_PORT || '8125', 10),
     host: process.env.HTTP_HOST || '127.0.0.1',
+    // Shared secret for the API→sidecar PIN webhook bearer. Unset => the
+    // listener fails closed (rejects every /internal/send-pin request).
+    sidecarKey: process.env.VG_ENROLL_SIDECAR_KEY,
   };
 }
 
