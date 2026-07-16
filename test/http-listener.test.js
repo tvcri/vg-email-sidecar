@@ -1,6 +1,33 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { handleSendPin } = require('../src/http-listener');
+const { handleSendPin, isAuthorized } = require('../src/http-listener');
+
+function reqWith(authHeader) {
+  return { headers: authHeader === undefined ? {} : { authorization: authHeader } };
+}
+
+test('isAuthorized returns false when the key is unset (fail-closed)', () => {
+  assert.equal(isAuthorized(reqWith('Bearer whatever'), undefined), false);
+  assert.equal(isAuthorized(reqWith('Bearer whatever'), ''), false);
+});
+
+test('isAuthorized returns false when the Authorization header is missing', () => {
+  assert.equal(isAuthorized(reqWith(undefined), 'secret'), false);
+});
+
+test('isAuthorized returns false for a non-bearer scheme', () => {
+  assert.equal(isAuthorized(reqWith('Basic secret'), 'secret'), false);
+});
+
+test('isAuthorized returns false for a wrong token (incl. length mismatch)', () => {
+  assert.equal(isAuthorized(reqWith('Bearer wrong'), 'secret'), false);
+  assert.equal(isAuthorized(reqWith('Bearer sec'), 'secret'), false);   // shorter
+  assert.equal(isAuthorized(reqWith('Bearer secretxx'), 'secret'), false); // longer
+});
+
+test('isAuthorized returns true for an exact bearer match', () => {
+  assert.equal(isAuthorized(reqWith('Bearer secret'), 'secret'), true);
+});
 
 test('handleSendPin sends the PIN email to the requested address', async () => {
   delete process.env.TEST_RECIPIENTS;

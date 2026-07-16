@@ -1,4 +1,5 @@
 const http = require('node:http');
+const crypto = require('node:crypto');
 const { sendEmail } = require('./gmail');
 const { getTestConfig, getHttpConfig } = require('./config');
 const { buildEnrollPinTemplate, applyEnrollTestBanner } = require('./templates');
@@ -28,12 +29,42 @@ async function handleSendPin(body, sendEmailFn = sendEmail) {
   return { ok: result.success };
 }
 
+// Extract the bearer token from an Authorization header, or undefined.
+function getBearerToken(req) {
+  const header = req.headers && req.headers.authorization;
+  if (!header) return undefined;
+  const parts = header.split(' ');
+  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') return undefined;
+  return parts[1];
+}
+
+// Constant-time bearer check for POST /internal/send-pin. Fail-closed: a falsy
+// key rejects every request. timingSafeEqual throws on length mismatch, so we
+// guard length first and treat a mismatch as a failed compare, not an error.
+function isAuthorized(req, key) {
+  if (!key) return false;
+  const token = getBearerToken(req);
+  if (!token) return false;
+  const a = Buffer.from(token);
+  const b = Buffer.from(key);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 function startHttpListener() {
-  const { port, host } = getHttpConfig();
+  const { port, host, sidecarKey } = getHttpConfig();
   const server = http.createServer((req, res) => {
     if (req.method !== 'POST' || req.url !== '/internal/send-pin') {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end('{"error":"not found"}');
+      return;
+    }
+    // Auth gate BEFORE reading the body: a reject must never parse or log the
+    // PIN-bearing body. Fail-closed when sidecarKey is unset.
+    if (!isAuthorized(req, sidecarKey)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end('{"error":"unauthorized"}');
+      // Deliberately no logging of the token or body on the reject path.
       return;
     }
     let data = '';
@@ -66,4 +97,4 @@ function startHttpListener() {
   return server;
 }
 
-module.exports = { startHttpListener, handleSendPin, PIN_SUBJECT };
+module.exports = { startHttpListener, handleSendPin, isAuthorized, PIN_SUBJECT };
