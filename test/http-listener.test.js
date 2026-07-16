@@ -22,7 +22,18 @@ test('handleSendPin redirects to TEST_RECIPIENTS when set', async () => {
   await handleSendPin({ email: 'vol@example.com', pin: '123456', firstName: 'Jane', kind: 'new' }, sendEmailFn);
   assert.equal(calls[0].to, 'tester@example.com');
   assert.ok(calls[0].subject.startsWith('[TEST]'));
+  // The test-mode body reports who the PIN was actually intended for.
+  assert.ok(calls[0].html.includes('TEST MODE:'));
+  assert.ok(calls[0].html.includes('vol@example.com'));
   delete process.env.TEST_RECIPIENTS;
+});
+
+test('handleSendPin omits the test banner when not in test mode', async () => {
+  delete process.env.TEST_RECIPIENTS;
+  const calls = [];
+  const sendEmailFn = async (msg) => { calls.push(msg); return { success: true }; };
+  await handleSendPin({ email: 'vol@example.com', pin: '123456', firstName: 'Jane', kind: 'new' }, sendEmailFn);
+  assert.ok(!calls[0].html.includes('TEST MODE:'));
 });
 
 test('handleSendPin rejects a body without email or pin', async () => {

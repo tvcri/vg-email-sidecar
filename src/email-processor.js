@@ -25,6 +25,7 @@ const {
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
   buildEnrollIneligibleTemplate,
+  applyEnrollTestBanner,
 } = require('./templates');
 
 const SERVICE_TYPE_TO_CAPABILITY = {
@@ -353,7 +354,10 @@ async function pollOnce() {
         const testConfig = getTestConfig();
         const to = testConfig.overrideRecipients ? testConfig.overrideRecipients.join(', ') : payload.email;
         const subject = buildSubject('Village Green enrollment', !!testConfig.overrideRecipients);
-        const html = buildEnrollIneligibleTemplate({ firstName: payload.firstName });
+        let html = buildEnrollIneligibleTemplate({ firstName: payload.firstName });
+        if (testConfig.overrideRecipients) {
+          html = applyEnrollTestBanner(html, payload.email);
+        }
         const result = await sendEmail({ to, subject, html, kind: event.eventType });
         if (result.success) {
           console.log(`[${new Date().toISOString()}] Enrollment ineligible email sent`);

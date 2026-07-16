@@ -1549,6 +1549,15 @@ function buildEnrollPinTemplate({ firstName, pin, kind }) {
 </html>`;
 }
 
+// Test-mode banner for the enrollment emails. Unlike applyTestBanner in
+// email-processor.js (which anchors to the SR templates' nested-table markup),
+// the enroll templates are plain <p> bodies, so we inject right after the
+// opening <body> tag. intendedEmail is the address the mail would have gone to.
+function applyEnrollTestBanner(html, intendedEmail) {
+  const notice = `<div style="margin:0 0 16px; padding:10px; background-color:#fff3cd; border:1px solid #ffc107; border-radius:4px; font-size:11px; color:#333;"><strong style="color:#856404;">TEST MODE:</strong> This email was sent to test recipients. Intended recipient would have been:<br><br>${intendedEmail}</div>`;
+  return html.replace(/(<body[^>]*>)/, `$1\n  ${notice}`);
+}
+
 function buildEnrollIneligibleTemplate({ firstName }) {
   const greeting = firstName ? `Dear ${firstName},` : 'Hello,';
   return `<html>
@@ -1580,4 +1589,5 @@ module.exports = {
   buildMemberCancelledTemplate,
   buildEnrollPinTemplate,
   buildEnrollIneligibleTemplate,
+  applyEnrollTestBanner,
 };

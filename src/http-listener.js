@@ -1,7 +1,7 @@
 const http = require('node:http');
 const { sendEmail } = require('./gmail');
 const { getTestConfig, getHttpConfig } = require('./config');
-const { buildEnrollPinTemplate } = require('./templates');
+const { buildEnrollPinTemplate, applyEnrollTestBanner } = require('./templates');
 
 const PIN_SUBJECT = 'Your Village Green enrollment PIN';
 
@@ -15,7 +15,10 @@ async function handleSendPin(body, sendEmailFn = sendEmail) {
   const testConfig = getTestConfig();
   const to = testConfig.overrideRecipients ? testConfig.overrideRecipients.join(', ') : email;
   const subject = testConfig.overrideRecipients ? `[TEST] ${PIN_SUBJECT}` : PIN_SUBJECT;
-  const html = buildEnrollPinTemplate({ firstName, pin, kind });
+  let html = buildEnrollPinTemplate({ firstName, pin, kind });
+  if (testConfig.overrideRecipients) {
+    html = applyEnrollTestBanner(html, email);
+  }
   const result = await sendEmailFn({ to, subject, html, kind: 'enroll_pin' });
   if (result.success) {
     console.log(`[${new Date().toISOString()}] Enrollment PIN email sent to ${to}`);

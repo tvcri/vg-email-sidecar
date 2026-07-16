@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { buildEnrollPinTemplate, buildEnrollIneligibleTemplate } = require('../src/templates');
+const { buildEnrollPinTemplate, buildEnrollIneligibleTemplate, applyEnrollTestBanner } = require('../src/templates');
 
 test('PIN template includes the PIN, greeting, and expiry note', () => {
   const html = buildEnrollPinTemplate({ firstName: 'Jane', pin: '123456', kind: 'new' });
@@ -23,4 +23,26 @@ test('ineligible template explains volunteers-only', () => {
   const html = buildEnrollIneligibleTemplate({ firstName: 'Bob' });
   assert.ok(html.includes('Dear Bob,'));
   assert.ok(html.includes('volunteers'));
+});
+
+test('applyEnrollTestBanner injects the intended email into the PIN template', () => {
+  const html = applyEnrollTestBanner(
+    buildEnrollPinTemplate({ firstName: 'Jane', pin: '123456', kind: 'new' }),
+    'vol@example.com'
+  );
+  assert.ok(html.includes('TEST MODE:'));
+  assert.ok(html.includes('vol@example.com'));
+  // Banner sits inside the body, before the greeting — proving the <body>
+  // anchor matched (a no-op replace would leave neither in this order).
+  assert.ok(html.indexOf('TEST MODE:') < html.indexOf('Dear Jane,'));
+});
+
+test('applyEnrollTestBanner injects into the ineligible template too', () => {
+  const html = applyEnrollTestBanner(
+    buildEnrollIneligibleTemplate({ firstName: 'Bob' }),
+    'member@example.com'
+  );
+  assert.ok(html.includes('TEST MODE:'));
+  assert.ok(html.includes('member@example.com'));
+  assert.ok(html.indexOf('TEST MODE:') < html.indexOf('Dear Bob,'));
 });
