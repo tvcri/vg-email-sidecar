@@ -28,6 +28,25 @@ function formatCivilTime(timeString) {
   return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
+// Starting location for a service request. Prefers the authoritative start*
+// fields (added by VG migration 0016); falls back to the requesting member's
+// home address when they are NULL or the columns don't exist yet (pre-0016
+// schema, or legacy rows that were never backfilled). The `start` name label is
+// optional decoration - the address is the substance - so we key off
+// startAddress alone, mirroring how the home fallback needs no label beyond
+// "Home". Matches the legacy one-line style; startPhone is intentionally not
+// shown and no map link is added.
+function formatStartingLocation(rd) {
+  if (rd.startAddress) {
+    const label = rd.start ? `${rd.start} - ` : '';
+    return `${label}${rd.startAddress} ${rd.startCity}, ${rd.startState} ${rd.startZip}`;
+  }
+  if (rd.memberAddress) {
+    return `Home - ${rd.memberAddress} ${rd.memberCity}, ${rd.memberState} ${rd.memberZip}`;
+  }
+  return '';
+}
+
 function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
   const {
     serviceName,
@@ -255,7 +274,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -400,7 +419,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -542,7 +561,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -660,7 +679,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `cell: ${memberCell}` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -969,6 +988,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
     : (destination || '');
+  const startingLocation = formatStartingLocation(requestData);
 
   const volunteerContact = [
     volunteerData.fullName,
@@ -1022,6 +1042,10 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                             <td valign='top'>Appointment Time</td>
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
+                          <tr>
+                            <td valign='top'>Starting Location:</td>
+                            <td valign='top'>${startingLocation}</td>
+                          </tr>
                           <tr>
                             <td valign='top'>Destination:</td>
                             <td valign='top'>
@@ -1174,6 +1198,7 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
     : (destination || '');
+  const startingLocation = formatStartingLocation(requestData);
 
   const volunteerContact = [
     volunteerData.fullName,
@@ -1218,6 +1243,10 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
                           <tr>
                             <td>Date:</td>
                             <td>${startDate} (The time is flexible)</td>
+                          </tr>
+                          <tr>
+                            <td valign='top'>Starting Location:</td>
+                            <td valign='top'>${startingLocation}</td>
                           </tr>
                           <tr>
                             <td valign='top'>Destination:</td>
@@ -1590,4 +1619,5 @@ module.exports = {
   buildEnrollPinTemplate,
   buildEnrollIneligibleTemplate,
   applyEnrollTestBanner,
+  formatStartingLocation,
 };

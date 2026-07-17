@@ -39,11 +39,31 @@ async function detectPayloadColumn(conn) {
   return rows[0].hasPayload > 0;
 }
 
+// Probe the live schema for the service_request start* columns (added by VG
+// migration 0016) and pin the service-request query to whichever columns exist.
+// Migration 0016 adds all six start* columns atomically, so probing startAddress
+// alone is sufficient. Lets the sidecar run against a pre-0016 schema without a
+// SQL error; the emails then fall back to the member's home address.
+async function detectStartColumns(conn) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS hasStart
+       FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'service_request'
+        AND column_name = 'startAddress'`
+  );
+  return rows[0].hasStart > 0;
+}
+
 async function initializePool() {
   await withConnection(async (conn) => {
     const hasPayload = await detectPayloadColumn(conn);
     queries.setPendingEventsHasPayload(hasPayload);
     console.log(`notification_event.payload column ${hasPayload ? 'present' : 'absent'}; enroll_ineligible events ${hasPayload ? 'supported' : 'not supported on this schema'}`);
+
+    const hasStart = await detectStartColumns(conn);
+    queries.setServiceRequestHasStart(hasStart);
+    console.log(`service_request.start* columns ${hasStart ? 'present' : 'absent'}; request emails ${hasStart ? 'use authoritative start address' : 'fall back to member home for starting location'}`);
   });
   return true;
 }
@@ -69,7 +89,7 @@ async function markNotificationFailed(id) {
 
 async function getServiceRequest(serviceRequestId) {
   return withConnection(async (conn) => {
-    const [rows] = await conn.query(queries.GET_SERVICE_REQUEST, [serviceRequestId]);
+    const [rows] = await conn.query(queries.getServiceRequestQuery(), [serviceRequestId]);
     return rows[0] || null;
   });
 }
