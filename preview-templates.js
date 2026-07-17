@@ -39,7 +39,7 @@ const ridesRequest = {
   serviceDate: '2025-12-26',
   timesFlexible: false,
   startTime: '06:00:00',
-  apptTime: null,
+  apptTime: '06:30:00',
   returnTime: null,
   finishTime: '07:00:00',
   // Authoritative start* fields (VG migration 0016). Errands below intentionally

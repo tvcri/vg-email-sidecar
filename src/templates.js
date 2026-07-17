@@ -327,7 +327,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>${pickupTime}</td>
                           </tr>` : ''}
                           ${appointmentTime ? `<tr>
-                            <td valign='top'>Appointment Time</td>
+                            <td valign='top'>Arrival Time</td>
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
                           <tr>
@@ -480,7 +480,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>${pickupTime}</td>
                           </tr>` : ''}
                           ${appointmentTime ? `<tr>
-                            <td valign='top'>Appointment Time</td>
+                            <td valign='top'>Arrival Time</td>
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
                           <tr>
@@ -1039,7 +1039,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                             <td valign='top'>${pickupTime}</td>
                           </tr>` : ''}
                           ${appointmentTime ? `<tr>
-                            <td valign='top'>Appointment Time</td>
+                            <td valign='top'>Arrival Time</td>
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
                           <tr>
