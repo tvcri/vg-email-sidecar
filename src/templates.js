@@ -1533,6 +1533,45 @@ function buildMemberCancelledTemplate(memberFirstName, requestData) {
   return html;
 }
 
+function buildEnrollPinTemplate({ firstName, pin, kind }) {
+  const greeting = firstName ? `Dear ${firstName},` : 'Hello,';
+  const intro = kind === 'existing_account'
+    ? `Our records show you may already have a Village Green account. Enter the PIN below on the enrollment page to continue &mdash; you will be able to sign in, or get a new temporary password if you never finished setting up.`
+    : `Enter the PIN below on the enrollment page to finish setting up your Village Green account.`;
+  return `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <p>${greeting}</p>
+  <p>${intro}</p>
+  <p style="font-size:24px; font-weight:bold; letter-spacing:6px;">${pin}</p>
+  <p>This PIN expires in 15 minutes and can be used once. If you did not request it, you can safely ignore this email.</p>
+  <p>The Village Common of RI</p>
+</body>
+</html>`;
+}
+
+// Test-mode banner for the enrollment emails. Unlike applyTestBanner in
+// email-processor.js (which anchors to the SR templates' nested-table markup),
+// the enroll templates are plain <p> bodies, so we inject right after the
+// opening <body> tag. intendedEmail is the address the mail would have gone to.
+function applyEnrollTestBanner(html, intendedEmail) {
+  const notice = `<div style="margin:0 0 16px; padding:10px; background-color:#fff3cd; border:1px solid #ffc107; border-radius:4px; font-size:11px; color:#333;"><strong style="color:#856404;">TEST MODE:</strong> This email was sent to test recipients. Intended recipient would have been:<br><br>${intendedEmail}</div>`;
+  return html.replace(/(<body[^>]*>)/, `$1\n  ${notice}`);
+}
+
+function buildEnrollIneligibleTemplate({ firstName }) {
+  const greeting = firstName ? `Dear ${firstName},` : 'Hello,';
+  return `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <p>${greeting}</p>
+  <p>Thanks for your interest in Village Green. At this time we are only setting up
+  online accounts for volunteers. Your email is registered with The Village Common
+  of RI as a member, so no online account is needed &mdash; please contact your village
+  office for help with service requests.</p>
+  <p>The Village Common of RI</p>
+</body>
+</html>`;
+}
+
 module.exports = {
   buildHomeHelpOpenRequestTemplate,
   buildHomeHelpConfirmedRequestTemplate,
@@ -1548,4 +1587,7 @@ module.exports = {
   buildTechSupportMemberConfirmedTemplate,
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
+  buildEnrollPinTemplate,
+  buildEnrollIneligibleTemplate,
+  applyEnrollTestBanner,
 };

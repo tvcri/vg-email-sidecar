@@ -1,9 +1,30 @@
-const GET_PENDING_EVENTS = `
-  SELECT id, eventType, serviceRequestId, createdAt
+// The payload column only exists once VG migration 0017 has run. Against an
+// older schema (e.g. production main) we omit it so the query still works;
+// event.payload is then undefined, which only the enroll_ineligible handler
+// reads and that event type is never enqueued on a pre-0017 schema.
+function buildGetPendingEvents({ hasPayload }) {
+  const cols = hasPayload
+    ? 'id, eventType, serviceRequestId, payload, createdAt'
+    : 'id, eventType, serviceRequestId, createdAt';
+  return `
+  SELECT ${cols}
   FROM notification_event
   WHERE sentAt IS NULL AND failedAt IS NULL
   ORDER BY createdAt ASC
 `;
+}
+
+// Default to the full (post-0017) query; db.js overrides this at startup once
+// it has probed the live schema.
+let GET_PENDING_EVENTS = buildGetPendingEvents({ hasPayload: true });
+
+function setPendingEventsHasPayload(hasPayload) {
+  GET_PENDING_EVENTS = buildGetPendingEvents({ hasPayload });
+}
+
+function getPendingEventsQuery() {
+  return GET_PENDING_EVENTS;
+}
 
 const MARK_NOTIFICATION_SENT = `
   UPDATE notification_event
@@ -98,7 +119,8 @@ const GET_PRIOR_OPEN_COUNT = `
 `;
 
 module.exports = {
-  GET_PENDING_EVENTS,
+  getPendingEventsQuery,
+  setPendingEventsHasPayload,
   MARK_NOTIFICATION_SENT,
   MARK_NOTIFICATION_FAILED,
   GET_SERVICE_REQUEST,

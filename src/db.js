@@ -25,14 +25,32 @@ async function withConnection(fn) {
   }
 }
 
+// Probe the live schema for notification_event.payload (added by VG migration
+// 0017) and pin the pending-events query to whichever columns exist. Lets the
+// sidecar run against a pre-0017 production schema without a SQL error.
+async function detectPayloadColumn(conn) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS hasPayload
+       FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'notification_event'
+        AND column_name = 'payload'`
+  );
+  return rows[0].hasPayload > 0;
+}
+
 async function initializePool() {
-  await withConnection(() => {});
+  await withConnection(async (conn) => {
+    const hasPayload = await detectPayloadColumn(conn);
+    queries.setPendingEventsHasPayload(hasPayload);
+    console.log(`notification_event.payload column ${hasPayload ? 'present' : 'absent'}; enroll_ineligible events ${hasPayload ? 'supported' : 'not supported on this schema'}`);
+  });
   return true;
 }
 
 async function getPendingEmailEvents() {
   return withConnection(async (conn) => {
-    const [rows] = await conn.query(queries.GET_PENDING_EVENTS);
+    const [rows] = await conn.query(queries.getPendingEventsQuery());
     return rows;
   });
 }

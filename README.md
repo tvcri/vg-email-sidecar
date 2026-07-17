@@ -11,7 +11,7 @@ capabilities, and sends email via the Gmail API (`googleapis` — not SMTP).
 
 - Node.js 18+
 - Access to the Village Green database (same credentials as the API)
-- Gmail OAuth2 credentials (stored in `services-mailer-token.json`)
+- A Google service-account key JSON with domain-wide delegation for the `gmail.send` scope (stored at the path in `GMAIL_SA_KEY_PATH`)
 
 ### Installation
 
@@ -26,15 +26,18 @@ npm install
    cp .env.example .env
    ```
 
-2. Ensure `services-mailer-token.json` exists at the path specified by
-   `GMAIL_TOKEN_PATH`. This file should contain:
+2. Place the service-account key JSON at the path specified by
+   `GMAIL_SA_KEY_PATH` (default `./vg-mailer-sa-key.json`). This file is the
+   key you downloaded for the service account and contains at least:
    ```json
    {
-     "client_id": "your-client-id",
-     "client_secret": "your-client-secret",
-     "refresh_token": "your-refresh-token"
+     "client_email": "vg-mailer@your-project.iam.gserviceaccount.com",
+     "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
    }
    ```
+   The service account must have domain-wide delegation authorized for the
+   `https://www.googleapis.com/auth/gmail.send` scope so it can impersonate
+   the sending mailboxes. The key file is gitignored — never commit it.
 
 3. Database credentials must match the Village Green API setup (same host,
    user, password, database).
@@ -87,6 +90,29 @@ Subject: `SR Cancel #…`.
 
 Routed but **no template exists yet** — events are logged with a warning and
 marked failed. Unknown event types are also marked failed.
+
+## PIN Webhook (`POST /internal/send-pin`)
+
+Besides polling `notification_event`, the sidecar runs a small HTTP listener
+(default `127.0.0.1:8125`, tunable via `HTTP_PORT`/`HTTP_HOST`) for the
+enrollment **PIN fast path**. The VG API POSTs `{ email, pin, firstName, kind }`
+fire-and-forget; the sidecar emails the plaintext PIN.
+
+**Authentication.** The endpoint requires a static shared-secret bearer:
+
+- Set `VG_ENROLL_SIDECAR_KEY` here to the **same value** as the API's
+  `VG_ENROLL_SIDECAR_KEY`.
+- The API sends `Authorization: Bearer <VG_ENROLL_SIDECAR_KEY>`; the sidecar
+  verifies it with a constant-time compare before reading the body.
+- **Fail-closed:** if `VG_ENROLL_SIDECAR_KEY` is unset here, the listener
+  rejects **every** `/internal/send-pin` request with `401`.
+- On a missing/wrong token the sidecar returns `401 {"error":"unauthorized"}`
+  and logs nothing from the token or body (the body carries the PIN).
+
+This bearer is defense-in-depth. The primary control in production is network
+isolation: run the API and this VM in the same Azure VNet (Regional VNet
+Integration) and restrict the VM's NSG to the integration subnet, so the
+webhook port is not reachable from other tenants at all.
 
 ## Error Handling
 
@@ -142,9 +168,11 @@ recipient derivation. There is no DB or Gmail integration harness.
 ## Troubleshooting
 
 ### Gmail send failures
-Check that `GMAIL_TOKEN_PATH` points to a valid `services-mailer-token.json`
-with valid OAuth credentials. The refresh token may have expired; regenerate
-via the oauth-dance script.
+Check that `GMAIL_SA_KEY_PATH` points to a valid service-account key JSON
+(with `client_email` and `private_key`). An `unauthorized_client` error means
+the service account's domain-wide delegation for the `gmail.send` scope is not
+authorized in the Google Workspace admin console for the mailbox being
+impersonated.
 
 ### No emails being sent
 Check `notification_event` for pending rows

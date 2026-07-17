@@ -24,6 +24,8 @@ const {
   buildTechSupportMemberConfirmedTemplate,
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
+  buildEnrollIneligibleTemplate,
+  applyEnrollTestBanner,
 } = require('./templates');
 
 const SERVICE_TYPE_TO_CAPABILITY = {
@@ -336,6 +338,39 @@ async function pollOnce() {
   for (const event of events) {
     try {
       console.log(`[${new Date().toISOString()}] Processing event #${event.id} (${event.eventType}) for SR #${event.serviceRequestId}`);
+
+      if (event.eventType === 'enroll_ineligible') {
+        // Payload-driven event: no service request. mysql2 usually parses the
+        // JSON column to an object already; tolerate a string for safety.
+        const payload = typeof event.payload === 'string'
+          ? JSON.parse(event.payload)
+          : (event.payload || {});
+        if (!payload.email) {
+          console.error(`enroll_ineligible event #${event.id} has no payload email`);
+          await markNotificationFailed(event.id);
+          failed++;
+          continue;
+        }
+        const testConfig = getTestConfig();
+        const to = testConfig.overrideRecipients ? testConfig.overrideRecipients.join(', ') : payload.email;
+        const subject = buildSubject('Village Green enrollment', !!testConfig.overrideRecipients);
+        let html = buildEnrollIneligibleTemplate({ firstName: payload.firstName });
+        if (testConfig.overrideRecipients) {
+          html = applyEnrollTestBanner(html, payload.email);
+        }
+        const result = await sendEmail({ to, subject, html, kind: event.eventType });
+        if (result.success) {
+          console.log(`[${new Date().toISOString()}] Enrollment ineligible email sent`);
+          await markNotificationSent(event.id, []);
+          sent++;
+        } else {
+          console.error(`[${new Date().toISOString()}] Failed to send enrollment ineligible email: ${result.error}`);
+          await markNotificationFailed(event.id);
+          failed++;
+        }
+        continue;
+      }
+
       const requestData = await getServiceRequest(event.serviceRequestId);
 
       if (!requestData) {
@@ -376,7 +411,7 @@ async function pollOnce() {
               .map(v => `${v.fullName} (${v.email})`).join('<br>');
             finalHtml = applyTestBanner(html, intendedStr);
           }
-          const result = await sendEmail({ bcc: recipients.bcc, subject, html: finalHtml });
+          const result = await sendEmail({ bcc: recipients.bcc, subject, html: finalHtml, kind: event.eventType });
           if (result.success) {
             console.log(`[${new Date().toISOString()}] Email sent: ${subject}`);
             recipientPersonIds.push(...recipients.resolvedVolunteers.map(v => v.id));
@@ -414,7 +449,7 @@ async function pollOnce() {
             }
           }
 
-          const volunteerResult = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalVolunteerHtml });
+          const volunteerResult = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalVolunteerHtml, kind: event.eventType });
           if (volunteerResult.success) {
             console.log(`[${new Date().toISOString()}] Volunteer email sent: ${subject}`);
             recipientPersonIds.push(recipients.volunteer.id);
@@ -423,7 +458,7 @@ async function pollOnce() {
           }
 
           if (recipients.memberEmail) {
-            const memberResult = await sendEmail({ to: recipients.memberEmail, subject, html: finalMemberHtml });
+            const memberResult = await sendEmail({ to: recipients.memberEmail, subject, html: finalMemberHtml, kind: event.eventType });
             if (memberResult.success) {
               console.log(`[${new Date().toISOString()}] Member email sent: ${subject}`);
               if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));
@@ -463,7 +498,7 @@ async function pollOnce() {
           const finalHtml = recipients.isTestMode && volunteerIntended
             ? applyTestBanner(html, `${volunteerIntended.fullName} (${volunteerIntended.email})`)
             : html;
-          const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml });
+          const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml, kind: event.eventType });
           if (result.success) {
             console.log(`[${new Date().toISOString()}] Volunteer cancellation email sent: ${subject}`);
             recipientPersonIds.push(recipients.volunteer.id);
@@ -478,7 +513,7 @@ async function pollOnce() {
           const finalHtml = recipients.isTestMode && memberIntended
             ? applyTestBanner(html, `${memberIntended.fullName} (${memberIntended.email})`)
             : html;
-          const result = await sendEmail({ to: recipients.memberEmail, subject, html: finalHtml });
+          const result = await sendEmail({ to: recipients.memberEmail, subject, html: finalHtml, kind: event.eventType });
           if (result.success) {
             console.log(`[${new Date().toISOString()}] Member cancellation email sent: ${subject}`);
             if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));
