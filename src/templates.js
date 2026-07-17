@@ -28,6 +28,26 @@ function formatCivilTime(timeString) {
   return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
+// mysql2 hands back JS null for a NULL column (and LPAD(NULL,...) is NULL), so a
+// missing zip/city/state would interpolate the literal string "null" into the
+// address blocks. Coalesce every nullable address component to '' up front so no
+// template can print "null". Non-address fields (names, dates, notes) are left
+// untouched - they have their own `|| ''` guards where needed.
+const ADDRESS_FIELDS = [
+  'address', 'city', 'state', 'zip',
+  'memberAddress', 'memberCity', 'memberState', 'memberZip',
+  'start', 'startAddress', 'startCity', 'startState', 'startZip', 'startPhone',
+  'memberPhone', 'memberCell',
+];
+
+function withBlankAddressNulls(rd) {
+  const out = { ...rd };
+  for (const f of ADDRESS_FIELDS) {
+    if (out[f] == null) out[f] = '';
+  }
+  return out;
+}
+
 // Starting location for a service request. Prefers the authoritative start*
 // fields (added by VG migration 0016); falls back to the requesting member's
 // home address when they are NULL or the columns don't exist yet (pre-0016
@@ -48,6 +68,7 @@ function formatStartingLocation(rd) {
 }
 
 function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -146,6 +167,7 @@ function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -240,6 +262,7 @@ function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildRidesOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -382,6 +405,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -537,6 +561,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -652,6 +677,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -778,6 +804,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -867,6 +894,7 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -961,6 +989,7 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -1100,6 +1129,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
 }
 
 function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -1181,6 +1211,7 @@ function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, re
 }
 
 function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -1291,6 +1322,7 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
 }
 
 function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -1376,6 +1408,7 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
 // whether a time is shown vary. Rides include the pickup time (startTime);
 // the other service types are flexible and show the date only.
 function buildCancelledTemplate(recipientFirstName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     status,
@@ -1479,6 +1512,7 @@ function buildCancelledTemplate(recipientFirstName, requestData) {
 // sample exactly, including the "if a volunteer was confirmed" line, which
 // is shown unconditionally regardless of whether one was actually assigned.
 function buildMemberCancelledTemplate(memberFirstName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const { serviceName, status, serviceDate, startTime } = requestData;
 
   const dateOnly = formatServiceDate(serviceDate);
