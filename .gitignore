@@ -1,7 +1,9 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
+
+# package-lock.json is committed: the Dockerfile uses `npm ci`, which requires
+# it and pins the dependency tree so every image build is reproducible.
 
 # Environment variables
 .env
