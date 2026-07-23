@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.*
+vg-mailer-sa-key.json
+*.eml
+out.sql
+report.json
+scratch
+preview
+test
+docs
+Dockerfile
+.dockerignore
+.git
