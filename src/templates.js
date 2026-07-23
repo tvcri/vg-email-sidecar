@@ -28,7 +28,47 @@ function formatCivilTime(timeString) {
   return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
+// mysql2 hands back JS null for a NULL column (and LPAD(NULL,...) is NULL), so a
+// missing zip/city/state would interpolate the literal string "null" into the
+// address blocks. Coalesce every nullable address component to '' up front so no
+// template can print "null". Non-address fields (names, dates, notes) are left
+// untouched - they have their own `|| ''` guards where needed.
+const ADDRESS_FIELDS = [
+  'address', 'city', 'state', 'zip',
+  'memberAddress', 'memberCity', 'memberState', 'memberZip',
+  'start', 'startAddress', 'startCity', 'startState', 'startZip', 'startPhone',
+  'memberPhone', 'memberCell',
+];
+
+function withBlankAddressNulls(rd) {
+  const out = { ...rd };
+  for (const f of ADDRESS_FIELDS) {
+    if (out[f] == null) out[f] = '';
+  }
+  return out;
+}
+
+// Starting location for a service request. Prefers the authoritative start*
+// fields (added by the VG sr-starting-address migration); falls back to the
+// requesting member's home address when they are NULL or the columns don't exist
+// yet (older schema, or legacy rows that were never backfilled). The `start` name label is
+// optional decoration - the address is the substance - so we key off
+// startAddress alone, mirroring how the home fallback needs no label beyond
+// "Home". Matches the legacy one-line style; startPhone is intentionally not
+// shown and no map link is added.
+function formatStartingLocation(rd) {
+  if (rd.startAddress) {
+    const label = rd.start ? `${rd.start} - ` : '';
+    return `${label}${rd.startAddress} ${rd.startCity}, ${rd.startState} ${rd.startZip}`;
+  }
+  if (rd.memberAddress) {
+    return `Home - ${rd.memberAddress} ${rd.memberCity}, ${rd.memberState} ${rd.memberZip}`;
+  }
+  return '';
+}
+
 function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -127,6 +167,7 @@ function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -221,6 +262,7 @@ function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildRidesOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -255,7 +297,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -308,7 +350,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>${pickupTime}</td>
                           </tr>` : ''}
                           ${appointmentTime ? `<tr>
-                            <td valign='top'>Appointment Time</td>
+                            <td valign='top'>Arrival Time</td>
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
                           <tr>
@@ -363,6 +405,7 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -400,7 +443,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -461,7 +504,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>${pickupTime}</td>
                           </tr>` : ''}
                           ${appointmentTime ? `<tr>
-                            <td valign='top'>Appointment Time</td>
+                            <td valign='top'>Arrival Time</td>
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
                           <tr>
@@ -518,6 +561,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -542,7 +586,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -633,6 +677,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -660,7 +705,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `cell: ${memberCell}` : ''}`
     : '';
-  const startingLocation = memberAddress ? `Home - ${memberAddress} ${memberCity}, ${memberState} ${memberZip}` : '';
+  const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
   const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
 
@@ -759,6 +804,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -848,6 +894,7 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
 }
 
 function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     memberName,
@@ -942,6 +989,7 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
 }
 
 function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -969,6 +1017,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
     : (destination || '');
+  const startingLocation = formatStartingLocation(requestData);
 
   const volunteerContact = [
     volunteerData.fullName,
@@ -1019,9 +1068,13 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                             <td valign='top'>${pickupTime}</td>
                           </tr>` : ''}
                           ${appointmentTime ? `<tr>
-                            <td valign='top'>Appointment Time</td>
+                            <td valign='top'>Arrival Time</td>
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
+                          <tr>
+                            <td valign='top'>Starting Location:</td>
+                            <td valign='top'>${startingLocation}</td>
+                          </tr>
                           <tr>
                             <td valign='top'>Destination:</td>
                             <td valign='top'>
@@ -1076,6 +1129,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
 }
 
 function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -1157,6 +1211,7 @@ function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, re
 }
 
 function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -1174,6 +1229,7 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
   const destinationAddress = destination && address
     ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
     : (destination || '');
+  const startingLocation = formatStartingLocation(requestData);
 
   const volunteerContact = [
     volunteerData.fullName,
@@ -1220,6 +1276,10 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
                             <td>${startDate} (The time is flexible)</td>
                           </tr>
                           <tr>
+                            <td valign='top'>Starting Location:</td>
+                            <td valign='top'>${startingLocation}</td>
+                          </tr>
+                          <tr>
                             <td valign='top'>Destination:</td>
                             <td valign='top'>${destinationAddress}</td>
                           </tr>
@@ -1262,6 +1322,7 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
 }
 
 function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     description,
@@ -1347,6 +1408,7 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
 // whether a time is shown vary. Rides include the pickup time (startTime);
 // the other service types are flexible and show the date only.
 function buildCancelledTemplate(recipientFirstName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const {
     serviceName,
     status,
@@ -1450,6 +1512,7 @@ function buildCancelledTemplate(recipientFirstName, requestData) {
 // sample exactly, including the "if a volunteer was confirmed" line, which
 // is shown unconditionally regardless of whether one was actually assigned.
 function buildMemberCancelledTemplate(memberFirstName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
   const { serviceName, status, serviceDate, startTime } = requestData;
 
   const dateOnly = formatServiceDate(serviceDate);
@@ -1590,4 +1653,5 @@ module.exports = {
   buildEnrollPinTemplate,
   buildEnrollIneligibleTemplate,
   applyEnrollTestBanner,
+  formatStartingLocation,
 };

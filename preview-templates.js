@@ -39,9 +39,17 @@ const ridesRequest = {
   serviceDate: '2025-12-26',
   timesFlexible: false,
   startTime: '06:00:00',
-  apptTime: null,
+  apptTime: '06:30:00',
   returnTime: null,
   finishTime: '07:00:00',
+  // Authoritative start* fields (VG sr-starting-address migration). Errands below intentionally
+  // omits them so its preview exercises the member-home fallback.
+  start: 'Laurelmead Cooperative',
+  startAddress: '355 Blackstone Blvd',
+  startCity: 'Providence',
+  startState: 'RI',
+  startZip: '02906',
+  startPhone: '401-555-0102',
   destination: 'Roger Williams Park Zoo',
   address: '1000 Elmwood Ave',
   city: 'Providence',

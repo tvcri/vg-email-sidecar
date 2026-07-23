@@ -38,6 +38,11 @@ const MARK_NOTIFICATION_FAILED = `
   WHERE id = ?
 `;
 
+// The start* columns are added by the VG sr-starting-address migration. This
+// sidecar is only ever deployed after that migration has run, so the columns are
+// always present. Rows created before the feature (or otherwise left blank) have
+// NULL start*, which the formatStartingLocation helper falls back to the
+// member's home address for.
 const GET_SERVICE_REQUEST = `
   SELECT
     sr.id,
@@ -61,6 +66,12 @@ const GET_SERVICE_REQUEST = `
     LPAD(sr.zip, 5, '0') as zip,
     sr.destination,
     sr.phone,
+    sr.start,
+    sr.startAddress,
+    sr.startCity,
+    sr.startState,
+    LPAD(sr.startZip, 5, '0') as startZip,
+    sr.startPhone,
     sr.transportationType,
     mp.id as memberPersonId,
     mp.fullName as memberName,
@@ -121,9 +132,9 @@ const GET_PRIOR_OPEN_COUNT = `
 module.exports = {
   getPendingEventsQuery,
   setPendingEventsHasPayload,
+  GET_SERVICE_REQUEST,
   MARK_NOTIFICATION_SENT,
   MARK_NOTIFICATION_FAILED,
-  GET_SERVICE_REQUEST,
   GET_VOLUNTEER,
   GET_PERSON,
   GET_VOLUNTEERS_BY_CAPABILITY,
