@@ -11,7 +11,7 @@ const {
 
 const volunteer = { fullName: 'Vera Volunteer', email: 'vera@example.com', cell: '401-555-0000' };
 
-// No start* fields: legacy / pre-0016 row. Should render the member home.
+// No start* fields: legacy / pre-migration row. Should render the member home.
 const homeRequest = {
   serviceName: 'Ride: Medical Appnt',
   memberName: 'Zelda Blow',

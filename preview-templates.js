@@ -42,7 +42,7 @@ const ridesRequest = {
   apptTime: '06:30:00',
   returnTime: null,
   finishTime: '07:00:00',
-  // Authoritative start* fields (VG migration 0016). Errands below intentionally
+  // Authoritative start* fields (VG sr-starting-address migration). Errands below intentionally
   // omits them so its preview exercises the member-home fallback.
   start: 'Laurelmead Cooperative',
   startAddress: '355 Blackstone Blvd',

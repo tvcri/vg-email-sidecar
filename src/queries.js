@@ -38,22 +38,12 @@ const MARK_NOTIFICATION_FAILED = `
   WHERE id = ?
 `;
 
-// The start* columns only exist once VG migration 0016 has run. Against an
-// older schema (e.g. production main before the feature merges) we omit them so
-// the query still works; requestData.startAddress is then undefined, which the
-// formatStartingLocation helper treats the same as a NULL start - it falls back
-// to the member's home address.
-function buildGetServiceRequest({ hasStart }) {
-  const startCols = hasStart
-    ? `
-    sr.start,
-    sr.startAddress,
-    sr.startCity,
-    sr.startState,
-    LPAD(sr.startZip, 5, '0') as startZip,
-    sr.startPhone,`
-    : '';
-  return `
+// The start* columns are added by the VG sr-starting-address migration. This
+// sidecar is only ever deployed after that migration has run, so the columns are
+// always present. Rows created before the feature (or otherwise left blank) have
+// NULL start*, which the formatStartingLocation helper falls back to the
+// member's home address for.
+const GET_SERVICE_REQUEST = `
   SELECT
     sr.id,
     sr.requestNumber,
@@ -75,7 +65,13 @@ function buildGetServiceRequest({ hasStart }) {
     sr.state,
     LPAD(sr.zip, 5, '0') as zip,
     sr.destination,
-    sr.phone,${startCols}
+    sr.phone,
+    sr.start,
+    sr.startAddress,
+    sr.startCity,
+    sr.startState,
+    LPAD(sr.startZip, 5, '0') as startZip,
+    sr.startPhone,
     sr.transportationType,
     mp.id as memberPersonId,
     mp.fullName as memberName,
@@ -95,19 +91,6 @@ function buildGetServiceRequest({ hasStart }) {
   LEFT JOIN active_member m ON mp.id = m.personId
   WHERE sr.id = ?
 `;
-}
-
-// Default to the full (post-0016) query; db.js overrides this at startup once
-// it has probed the live schema.
-let GET_SERVICE_REQUEST = buildGetServiceRequest({ hasStart: true });
-
-function setServiceRequestHasStart(hasStart) {
-  GET_SERVICE_REQUEST = buildGetServiceRequest({ hasStart });
-}
-
-function getServiceRequestQuery() {
-  return GET_SERVICE_REQUEST;
-}
 
 const GET_VOLUNTEER = `
   SELECT
@@ -149,8 +132,7 @@ const GET_PRIOR_OPEN_COUNT = `
 module.exports = {
   getPendingEventsQuery,
   setPendingEventsHasPayload,
-  getServiceRequestQuery,
-  setServiceRequestHasStart,
+  GET_SERVICE_REQUEST,
   MARK_NOTIFICATION_SENT,
   MARK_NOTIFICATION_FAILED,
   GET_VOLUNTEER,

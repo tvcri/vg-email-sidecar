@@ -49,9 +49,9 @@ function withBlankAddressNulls(rd) {
 }
 
 // Starting location for a service request. Prefers the authoritative start*
-// fields (added by VG migration 0016); falls back to the requesting member's
-// home address when they are NULL or the columns don't exist yet (pre-0016
-// schema, or legacy rows that were never backfilled). The `start` name label is
+// fields (added by the VG sr-starting-address migration); falls back to the
+// requesting member's home address when they are NULL or the columns don't exist
+// yet (older schema, or legacy rows that were never backfilled). The `start` name label is
 // optional decoration - the address is the substance - so we key off
 // startAddress alone, mirroring how the home fallback needs no label beyond
 // "Home". Matches the legacy one-line style; startPhone is intentionally not
