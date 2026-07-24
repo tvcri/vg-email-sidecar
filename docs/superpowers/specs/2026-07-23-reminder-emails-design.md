@@ -137,11 +137,22 @@ Location row. The departure is deliberate, not a template bug.
 Replace the stub. Structure mirrors the `cancelled` branch, which already solves
 the same two-recipient, partial-success shape.
 
-**Status re-check.** Before sending:
+**Status re-check.** Extracted as a pure, exported predicate so it is testable
+without a DB — this repo has no mocking harness and tests only pure pieces:
 
 ```js
-if (requestData.status !== 'Confirmed') {
-  console.log(`... SR #${requestData.id} no longer Confirmed, skipping reminder`);
+function shouldSkipReminder(requestData) {
+  if (requestData.status !== 'Confirmed') return true;
+  if (!requestData.volunteerPersonId) return true;
+  return false;
+}
+```
+
+Used by the branch as:
+
+```js
+if (shouldSkipReminder(requestData)) {
+  console.log(`... SR #${requestData.id} is ${requestData.status}; skipping reminder`);
   await markNotificationSent(event.id, []);
   continue;
 }
@@ -246,10 +257,19 @@ through the serial poll loop.
   literal `"null"` (the `withBlankAddressNulls` contract).
 - Subject: `SR Reminder #…` uses `requestNumber` when present, else `id`.
 
-**Routing tests** (extending `test/email-processor.test.js`):
+**`test/reminder-routing.test.js`:**
 
-- A non-`Confirmed` request marks the event **sent** and sends nothing.
-- A member with no email still sends to the volunteer and marks sent.
+- `shouldSkipReminder` returns `false` for `Confirmed` with a volunteer, and
+  `true` for every other status (`Member cancelled`, `Volunteer cancelled`,
+  `Hub cancelled`, `Completed`, `Open`, `Unmatched`) and for `Confirmed` with a
+  null volunteer.
+- `buildSubject` applies the `[TEST]` prefix to the `SR Reminder #…` subject.
+
+The send branch itself is **not** unit-tested: it lives inside `pollOnce`, which
+needs a live DB and the Gmail API, and this repo deliberately has no mocking
+harness (README, "Testing"). Its two decision points are covered as pure
+functions above; end-to-end verification is the preview pages plus a
+`TEST_RECIPIENTS` run before go-live.
 
 **Preview:** four `preview/reminder-*.html` pages via `preview-templates.js`, so
 the rendering can be compared against the customer's PDFs before go-live.
