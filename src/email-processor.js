@@ -184,12 +184,20 @@ function deriveRecipientsForEvent(eventType, requestData) {
     const hasVolunteer = !!requestData.volunteerPersonId
     return { sendToBccVolunteers: false, sendToVolunteer: hasVolunteer, sendToMember: true }
   }
+  // Reminders go to the ASSIGNED VOLUNTEER ONLY - never the member. All four
+  // customer sample emails were addressed to the volunteer (the requesting
+  // member is a different person, named in the body), the copy reads "a service
+  // request ... for which you are scheduled", and the body carries the member's
+  // address and cell as dispatch detail for someone travelling to the job. A
+  // member receiving it would be told their own address with no volunteer
+  // contact info; they already got that in the confirmation email.
+  //
   // NOTE: the reminder send branch in pollOnce does NOT consult this entry - it
-  // gates each send on whether that recipient resolved to an email instead
-  // (shouldSkipReminder already guarantees an assigned volunteer). Editing the
-  // flags here will NOT change reminder routing; change the branch itself.
+  // gates on whether the volunteer resolved to an email (shouldSkipReminder
+  // already guarantees an assigned volunteer). Editing the flags here will NOT
+  // change reminder routing; change the branch itself.
   if (eventType === 'reminder') {
-    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: true }
+    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: false }
   }
   return { sendToBccVolunteers: false, sendToVolunteer: false, sendToMember: false }
 }
@@ -339,7 +347,8 @@ async function resolveRecipientsForCancelledRequest(requestData) {
   };
 }
 
-// Mirrors resolveRecipientsForCancelledRequest. Callers must have already run
+// Reminders go to the assigned volunteer ONLY - the member is never notified
+// (see deriveRecipientsForEvent for why). Callers must have already run
 // shouldSkipReminder, so volunteerPersonId is guaranteed non-null here.
 async function resolveRecipientsForReminder(requestData) {
   const testConfig = getTestConfig();
@@ -348,36 +357,21 @@ async function resolveRecipientsForReminder(requestData) {
 
   if (!volunteer || !volunteer.email) {
     console.warn(`Volunteer person not found or has no email: ${requestData.volunteerPersonId}`);
-  }
-
-  const memberEmail = requestData.memberEmail;
-
-  const intendedRecipients = [];
-  if (volunteer && volunteer.email) {
-    intendedRecipients.push({ fullName: volunteer.fullName, email: volunteer.email });
-  }
-  if (memberEmail) {
-    intendedRecipients.push({ fullName: requestData.memberName, email: memberEmail });
+    return { volunteerEmail: null, volunteer, isTestMode: !!testConfig.overrideRecipients };
   }
 
   if (testConfig.overrideRecipients) {
     console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
     return {
-      volunteerEmail: (volunteer && volunteer.email) ? testConfig.overrideRecipients.join(', ') : null,
-      memberEmail: memberEmail ? testConfig.overrideRecipients.join(', ') : null,
+      volunteerEmail: testConfig.overrideRecipients.join(', '),
       volunteer,
-      memberName: requestData.memberName,
-      intendedRecipients,
       isTestMode: true,
     };
   }
 
   return {
-    volunteerEmail: (volunteer && volunteer.email) ? volunteer.email : null,
-    memberEmail: memberEmail || null,
+    volunteerEmail: volunteer.email,
     volunteer,
-    memberName: requestData.memberName,
-    intendedRecipients: null,
     isTestMode: false,
   };
 }
@@ -600,54 +594,33 @@ async function pollOnce() {
           continue;
         }
 
+        // Single recipient: the assigned volunteer. Unlike the cancelled branch,
+        // there is no member send to reconcile, so no anySuccess bookkeeping.
         const recipients = await resolveRecipientsForReminder(requestData);
+
+        if (!recipients.volunteerEmail) {
+          console.warn(`[${new Date().toISOString()}] SR #${requestData.id} reminder has no reachable volunteer`);
+          await markNotificationFailed(event.id);
+          failed++;
+          continue;
+        }
+
         const baseSubject = `SR Reminder #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.serviceDate)}`;
         const subject = buildSubject(baseSubject, recipients.isTestMode);
 
-        // Each email's banner names only its own intended recipient, not the
-        // combined list of everyone notified for this event.
-        const volunteerIntended = recipients.volunteer
-          ? (recipients.intendedRecipients || []).find(r => r.email === recipients.volunteer.email)
-          : null;
-        const memberIntended = (recipients.intendedRecipients || []).find(r => r.fullName === recipients.memberName);
+        const html = buildReminderTemplate(getFirstName(recipients.volunteer.fullName), requestData);
+        const finalHtml = recipients.isTestMode
+          ? applyTestBanner(html, `${recipients.volunteer.fullName} (${recipients.volunteer.email})`)
+          : html;
+        const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml, kind: event.eventType });
 
-        let anySuccess = false;
-
-        if (recipients.volunteerEmail) {
-          const html = buildReminderTemplate(getFirstName(recipients.volunteer.fullName), requestData);
-          const finalHtml = recipients.isTestMode && volunteerIntended
-            ? applyTestBanner(html, `${volunteerIntended.fullName} (${volunteerIntended.email})`)
-            : html;
-          const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml, kind: event.eventType });
-          if (result.success) {
-            console.log(`[${new Date().toISOString()}] Volunteer reminder email sent: ${subject}`);
-            recipientPersonIds.push(recipients.volunteer.id);
-            anySuccess = true;
-          } else {
-            console.error(`[${new Date().toISOString()}] Failed to send volunteer reminder email: ${result.error}`);
-          }
-        }
-
-        if (recipients.memberEmail) {
-          const html = buildReminderTemplate(getFirstName(recipients.memberName), requestData);
-          const finalHtml = recipients.isTestMode && memberIntended
-            ? applyTestBanner(html, `${memberIntended.fullName} (${memberIntended.email})`)
-            : html;
-          const result = await sendEmail({ to: recipients.memberEmail, subject, html: finalHtml, kind: event.eventType });
-          if (result.success) {
-            console.log(`[${new Date().toISOString()}] Member reminder email sent: ${subject}`);
-            if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));
-            anySuccess = true;
-          } else {
-            console.error(`[${new Date().toISOString()}] Failed to send member reminder email: ${result.error}`);
-          }
-        }
-
-        if (anySuccess) {
+        if (result.success) {
+          console.log(`[${new Date().toISOString()}] Volunteer reminder email sent: ${subject}`);
+          recipientPersonIds.push(recipients.volunteer.id);
           await markNotificationSent(event.id, recipientPersonIds);
           sent++;
         } else {
-          console.warn(`[${new Date().toISOString()}] SR #${requestData.id} reminder had no reachable recipients`);
+          console.error(`[${new Date().toISOString()}] Failed to send volunteer reminder email: ${result.error}`);
           await markNotificationFailed(event.id);
           failed++;
         }

@@ -36,8 +36,8 @@ From issue #62 and its comment thread:
    scheduled" — presupposes a confirmed assignment. Unmatched `Open` requests
    get no reminder; that would need different copy the customer has not
    supplied.
-3. **Recipients:** the assigned volunteer and the member (already the decided
-   routing).
+3. **Recipients:** the **assigned volunteer only — never the member**
+   (corrected 2026-07-23; see below).
 4. **Templates:** page 2 of `scratch/template-reminder-{ride,errand,help,tech}.pdf`.
 5. **Starting Location:** **Rides only** — see "Starting Location" below.
 
@@ -166,10 +166,21 @@ the sidecar returns — potentially long after the request was cancelled. Marked
 **sent, not failed**, since skipping is the correct outcome, and a `failedAt`
 row would read as a false alarm during triage.
 
-**Recipients.** `resolveRecipientsForReminder(requestData)`, reusing the shape
-of `resolveRecipientsForCancelledRequest`: resolve the assigned volunteer via
-`getPerson(volunteerPersonId)`, read `memberEmail` off the request, honor
-`TEST_RECIPIENTS` override, and build `intendedRecipients` for the test banner.
+**Recipients — the assigned volunteer ONLY.** `resolveRecipientsForReminder`
+resolves the volunteer via `getPerson(volunteerPersonId)` and honors the
+`TEST_RECIPIENTS` override. It does not read `memberEmail`.
+
+> **Corrected 2026-07-23.** This spec originally routed reminders to the
+> volunteer *and* the member, carried over from issue #62's scaffolding
+> (`sendToMember: true`). The customer's four sample emails contradict that and
+> were the evidence nobody checked: every one is addressed **to the volunteer**
+> (Joanne Miller), while the requesting member in the body is a different
+> person (Zelda Blow). The copy — "a service request … for which you are
+> scheduled" — describes a volunteer's obligation, not a member's request, and
+> the body carries the member's address and cell as dispatch detail while
+> giving a member no volunteer to contact. Members already learn who is coming
+> from the `confirmed` email. A member-facing reminder would need its own copy
+> and template; the customer has not asked for one.
 
 **Subject.** `SR Reminder #<n>-For <member>-Service Date: <date>` where `<n>` is
 `requestData.requestNumber || requestData.id` and `<date>` comes from
@@ -178,15 +189,13 @@ follows the sidecar's existing `SR Request #` / `SR Conf #` / `SR Cancel #`
 convention rather than the PDFs' `The Village Common of RI - Reminder - SR #…`
 (Gmail already shows the org as the sender).
 
-**Send.** Same body to volunteer and to member — the copy reads correctly for
-both. Member send is skipped when they have no email, matching `confirmed`.
-`applyTestBanner` is applied per-email naming only that email's own intended
-recipient, as the other branches do. Mark sent if **either** send succeeded,
-recording the notified person ids; mark failed only if neither did.
+**Send.** One email to the volunteer. `applyTestBanner` names that recipient in
+test mode. Mark sent on success (recording the volunteer's person id); mark
+failed if the send fails, or if the volunteer has no reachable email.
 
-**Known carry-over:** partial success (volunteer sends, member fails) stamps
-`sentAt` and never retries. That is the existing behavior of every branch and is
-tracked by issue #2; the reminder branch stays consistent rather than diverging.
+Because there is exactly one recipient, this branch needs no `anySuccess`
+bookkeeping and is **not** subject to the partial-success retry gap (issue #2)
+that affects the two-recipient `confirmed` and `cancelled` branches.
 
 ### 3. Enqueue EVENT — documented example
 

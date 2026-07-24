@@ -30,10 +30,14 @@ test('cancelled without volunteer sends to member only', () => {
   assert.equal(result.sendToBccVolunteers, false)
 })
 
-test('reminder sends to member and volunteer', () => {
+// Reminders go to the assigned volunteer ONLY. The customer's sample emails
+// were all addressed to the volunteer (the member is a different person, named
+// in the body), the copy reads "for which you are scheduled", and the body
+// carries no volunteer contact info - it is dispatch detail, not a member notice.
+test('reminder sends to the volunteer only, never the member', () => {
   const result = deriveRecipientsForEvent('reminder', { volunteerPersonId: 42 })
   assert.equal(result.sendToVolunteer, true)
-  assert.equal(result.sendToMember, true)
+  assert.equal(result.sendToMember, false)
   assert.equal(result.sendToBccVolunteers, false)
 })
 

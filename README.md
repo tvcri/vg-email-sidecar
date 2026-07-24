@@ -88,9 +88,15 @@ Subject: `SR Cancel #…`.
 
 ### `reminder` — service is two days away
 
-Sent to the assigned volunteer and the member (skipped if the member has no
-email). Subject: `SR Reminder #…`. One shared template covers all four service
-types; **Starting Location appears on rides only**.
+Sent to the **assigned volunteer only — never the member**. Subject:
+`SR Reminder #…`. One shared template covers all four service types;
+**Starting Location appears on rides only**.
+
+The reminder is dispatch information for the person doing the job: it says "a
+service request … for which you are scheduled" and carries the member's
+address and cell, with no volunteer contact details. A member receiving it
+would be told their own address and given no one to call. Members already learn
+who is coming from the `confirmed` email sent when the volunteer is assigned.
 
 Reminder rows are enqueued by a MySQL scheduled `EVENT` owned by the
 village-green migrations, not by the API — see `docs/examples/reminder-event.sql`
