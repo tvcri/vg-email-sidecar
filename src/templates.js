@@ -1635,8 +1635,10 @@ function buildEnrollIneligibleTemplate({ firstName }) {
 </html>`;
 }
 
-// Reminder notice sent to both the assigned volunteer and the member two days
-// before the service date. One builder covers all four service types: the four
+// Reminder notice sent to the ASSIGNED VOLUNTEER ONLY (never the member) two
+// days before the service date - the copy says "for which you are scheduled"
+// and the body is dispatch detail for the person travelling to the job.
+// One builder covers all four service types: the four
 // customer template PDFs share a single layout and differ only in data, so the
 // variation is expressed as three conditionals rather than four near-identical
 // builders.

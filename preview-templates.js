@@ -144,8 +144,8 @@ const renders = [
   ['cancel-errands.html',      buildCancelledTemplate('Joanne', errandsRequest)],
   ['cancel-rides-member.html', buildMemberCancelledTemplate('Zelda', ridesRequest)],
   ['cancel-errands-member.html', buildMemberCancelledTemplate('Zelda', errandsRequest)],
-  // Reminder notices go to the assigned volunteer and the member two days
-  // before the service date. Starting Location appears on rides only.
+  // Reminder notices go to the assigned volunteer only (never the member) two
+  // days before the service date. Starting Location appears on rides only.
   ['reminder-rides.html',   buildReminderTemplate('Joanne', ridesRequest)],
   ['reminder-errands.html', buildReminderTemplate('Joanne', errandsRequest)],
   ['reminder-homhelp.html', buildReminderTemplate('Joanne', homeHelpRequest)],

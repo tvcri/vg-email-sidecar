@@ -1,8 +1,24 @@
 # Automatic Reminder Emails Implementation Plan
 
+> ⚠️ **HISTORICAL ARTIFACT — superseded in three places. Do not read this as a
+> description of current behavior; see the spec and `README.md` instead.**
+>
+> This plan was executed as written, then corrected during review:
+> 1. **Recipients:** reminders go to the **assigned volunteer ONLY, never the
+>    member**. The code snippets below still say "and the member" — that was
+>    reversed in `e1a72ad` after the customer's sample emails showed every one
+>    addressed to the volunteer.
+> 2. **The example `EVENT`** is a plain daily UTC schedule recreated by hand at
+>    each DST boundary, not the hourly Eastern-hour-gated version below
+>    (`8ff491a`).
+> 3. **Template layout** was restructured to a single left margin (`527183e`).
+>
+> Also note Task 4's Step 5 wrongly assumed `preview/` is git-tracked; it is
+> gitignored, and the generated previews are local build artifacts.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Send a reminder email to the assigned volunteer and the member at 7am Eastern, two days before the service date, for Confirmed service requests.
+**Goal:** Send a reminder email to the assigned volunteer at 7am Eastern, two days before the service date, for Confirmed service requests. *(Original text said "and the member" — see the correction notice above.)*
 
 **Architecture:** One new template builder in `src/templates.js` (three data-driven conditionals, no per-service-type dispatcher), a real `reminder` branch replacing the stub in `src/email-processor.js`, and a documented example MySQL `EVENT` that enqueues rows. The polling loop, queries, and Gmail layer are untouched — the poller already picks up any pending row regardless of `eventType`.
 
