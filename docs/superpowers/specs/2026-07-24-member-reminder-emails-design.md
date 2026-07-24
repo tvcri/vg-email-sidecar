@@ -148,7 +148,8 @@ entry is re-checked against the new branch shape).
   for a Ride), no `Destination` heading.
 - Null-address fixture renders no literal `"null"`.
 
-**Routing tests** (`test/reminder-routing.test.js`): `deriveRecipientsForEvent`
+**Routing tests** (`test/email-processor.test.js`, where the existing
+`deriveRecipientsForEvent` reminder test lives): `deriveRecipientsForEvent`
 for `reminder` now returns `sendToMember: true`.
 
 The send branch itself is not unit-tested (lives in `pollOnce`; repo has no
