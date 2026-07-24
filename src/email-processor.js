@@ -24,6 +24,7 @@ const {
   buildTechSupportMemberConfirmedTemplate,
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
+  buildReminderTemplate,
   buildEnrollIneligibleTemplate,
   applyEnrollTestBanner,
 } = require('./templates');
@@ -183,10 +184,34 @@ function deriveRecipientsForEvent(eventType, requestData) {
     const hasVolunteer = !!requestData.volunteerPersonId
     return { sendToBccVolunteers: false, sendToVolunteer: hasVolunteer, sendToMember: true }
   }
+  // Reminders go to the ASSIGNED VOLUNTEER ONLY - never the member. All four
+  // customer sample emails were addressed to the volunteer (the requesting
+  // member is a different person, named in the body), the copy reads "a service
+  // request ... for which you are scheduled", and the body carries the member's
+  // address and cell as dispatch detail for someone travelling to the job. A
+  // member receiving it would be told their own address with no volunteer
+  // contact info; they already got that in the confirmation email.
+  //
+  // NOTE: the reminder send branch in pollOnce does NOT consult this entry - it
+  // gates on whether the volunteer resolved to an email (shouldSkipReminder
+  // already guarantees an assigned volunteer). Editing the flags here will NOT
+  // change reminder routing; change the branch itself.
   if (eventType === 'reminder') {
-    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: true }
+    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: false }
   }
   return { sendToBccVolunteers: false, sendToVolunteer: false, sendToMember: false }
+}
+
+// A reminder row is enqueued at 07:00 ET, but pending rows are durable and the
+// pending-events query has no age filter - if the sidecar is down or behind at
+// that moment, the row is delivered whenever it next runs. Re-check the request
+// at send time so a request cancelled during that gap does not get a reminder.
+// status is already on the row getServiceRequest() fetched, so this costs no
+// extra query.
+function shouldSkipReminder(requestData) {
+  if (requestData.status !== 'Confirmed') return true;
+  if (!requestData.volunteerPersonId) return true;
+  return false;
 }
 
 async function resolveRecipientsForOpenRequest(requestData) {
@@ -318,6 +343,35 @@ async function resolveRecipientsForCancelledRequest(requestData) {
     volunteer,
     memberName: requestData.memberName,
     intendedRecipients: null,
+    isTestMode: false,
+  };
+}
+
+// Reminders go to the assigned volunteer ONLY - the member is never notified
+// (see deriveRecipientsForEvent for why). Callers must have already run
+// shouldSkipReminder, so volunteerPersonId is guaranteed non-null here.
+async function resolveRecipientsForReminder(requestData) {
+  const testConfig = getTestConfig();
+
+  const volunteer = await getPerson(requestData.volunteerPersonId);
+
+  if (!volunteer || !volunteer.email) {
+    console.warn(`Volunteer person not found or has no email: ${requestData.volunteerPersonId}`);
+    return { volunteerEmail: null, volunteer, isTestMode: !!testConfig.overrideRecipients };
+  }
+
+  if (testConfig.overrideRecipients) {
+    console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
+    return {
+      volunteerEmail: testConfig.overrideRecipients.join(', '),
+      volunteer,
+      isTestMode: true,
+    };
+  }
+
+  return {
+    volunteerEmail: volunteer.email,
+    volunteer,
     isTestMode: false,
   };
 }
@@ -533,9 +587,43 @@ async function pollOnce() {
         }
 
       } else if (event.eventType === 'reminder') {
-        console.warn(`[${new Date().toISOString()}] No template yet for eventType=${event.eventType}, marking failed`);
-        await markNotificationFailed(event.id);
-        failed++;
+        if (shouldSkipReminder(requestData)) {
+          console.log(`[${new Date().toISOString()}] SR #${requestData.id} is ${requestData.status} with volunteer ${requestData.volunteerPersonId || 'none'}; skipping reminder`);
+          await markNotificationSent(event.id, []);
+          sent++;
+          continue;
+        }
+
+        // Single recipient: the assigned volunteer. Unlike the cancelled branch,
+        // there is no member send to reconcile, so no anySuccess bookkeeping.
+        const recipients = await resolveRecipientsForReminder(requestData);
+
+        if (!recipients.volunteerEmail) {
+          console.warn(`[${new Date().toISOString()}] SR #${requestData.id} reminder has no reachable volunteer`);
+          await markNotificationFailed(event.id);
+          failed++;
+          continue;
+        }
+
+        const baseSubject = `SR Reminder #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.serviceDate)}`;
+        const subject = buildSubject(baseSubject, recipients.isTestMode);
+
+        const html = buildReminderTemplate(getFirstName(recipients.volunteer.fullName), requestData);
+        const finalHtml = recipients.isTestMode
+          ? applyTestBanner(html, `${recipients.volunteer.fullName} (${recipients.volunteer.email})`)
+          : html;
+        const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml, kind: event.eventType });
+
+        if (result.success) {
+          console.log(`[${new Date().toISOString()}] Volunteer reminder email sent: ${subject}`);
+          recipientPersonIds.push(recipients.volunteer.id);
+          await markNotificationSent(event.id, recipientPersonIds);
+          sent++;
+        } else {
+          console.error(`[${new Date().toISOString()}] Failed to send volunteer reminder email: ${result.error}`);
+          await markNotificationFailed(event.id);
+          failed++;
+        }
 
       } else {
         console.warn(`[${new Date().toISOString()}] Unknown eventType=${event.eventType}`);
@@ -553,4 +641,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription, shouldSkipReminder };

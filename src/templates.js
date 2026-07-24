@@ -1635,6 +1635,134 @@ function buildEnrollIneligibleTemplate({ firstName }) {
 </html>`;
 }
 
+// Reminder notice sent to the ASSIGNED VOLUNTEER ONLY (never the member) two
+// days before the service date - the copy says "for which you are scheduled"
+// and the body is dispatch detail for the person travelling to the job.
+// One builder covers all four service types: the four
+// customer template PDFs share a single layout and differ only in data, so the
+// variation is expressed as three conditionals rather than four near-identical
+// builders.
+//
+// Starting Location is RIDES ONLY - confirmed customer intent. Note the Errands
+// open/confirmed templates in this file render that row from an earlier misread;
+// do not copy that behavior here, and do not "fix" those templates from this
+// feature.
+function buildReminderTemplate(recipientFirstName, requestData) {
+  requestData = withBlankAddressNulls(requestData);
+  const {
+    serviceName,
+    memberName,
+    memberAddress,
+    memberCity,
+    memberState,
+    memberZip,
+    memberCell,
+    description,
+    destination,
+    address,
+    city,
+    state,
+    zip,
+    serviceDate,
+    timesFlexible,
+    startTime,
+  } = requestData;
+
+  const dateOnly = formatServiceDate(serviceDate);
+  const timeOnly = formatCivilTime(startTime);
+  // Rides carry a startTime; the other service types are flagged flexible. The
+  // distinction is in the data, so no service-type check is needed here.
+  const dateTime = startTime && !timesFlexible && timeOnly
+    ? `${dateOnly} at ${timeOnly}`
+    : `${dateOnly} &nbsp;(The time is flexible)`;
+
+  const memberAddressBlock = memberAddress
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}${memberCell ? `<br><br>${memberCell} (cell)` : ''}`
+    : `${memberName || ''}${memberCell ? `<br><br>${memberCell} (cell)` : ''}`;
+
+  // Starting Location is its own underlined heading (not a two-column row) so
+  // its content sits at the same left margin as every other section - matching
+  // the customer's layout, where only Service/Date-Time are a label/value pair.
+  const isRide = !!serviceName && serviceName.startsWith('Ride:');
+  const startingLocationBlock = isRide
+    ? `<u>Starting Location</u><br>
+                    ${formatStartingLocation(requestData)}<br><br>`
+    : '';
+
+  const destinationAddress = destination && address
+    ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}`
+    : (destination || '');
+  const destinationBlock = destination
+    ? `<u>Destination</u><br>
+                      ${destinationAddress}<br><br>
+                      `
+    : '';
+
+  const html = `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <table border='0' cellpadding='50' cellspacing='0' style='background-color: #b2b2b2;width: 100%;'>
+    <tr>
+      <td align='center'>
+        <table border='0' cellpadding='4' cellspacing='0' style='background-color:white; width:600px;border-width:1px;border-color:Black; border-style:solid;border-radius:10px;'>
+          <tr>
+            <td>
+              <table cellpadding='0' cellspacing='0' border='0'>
+                <tr>
+                  <td style='font-weight: bold; font-size: 24px; font-family: Arial, Sans-Serif;padding:10px 5px;border-bottom:1px solid #cdcdcd;width:100%;'>
+                    The Village Common of RI
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table cellpadding='15' cellspacing='0' border='0'>
+                <tr>
+                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
+                    This is a reminder about a service request with <strong>The Village Common of RI</strong> for which you are scheduled.<br><br>
+                    <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
+                      <table cellpadding='0' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                        <tbody>
+                          <tr>
+                            <td valign='top' style='padding-right:12px;padding-bottom:3px;'>Service:</td>
+                            <td valign='top' style='padding-bottom:3px;'><strong>${serviceName}</strong></td>
+                          </tr>
+                          <tr>
+                            <td valign='top' style='padding-right:12px;'>Date/Time:</td>
+                            <td valign='top'><strong>${dateTime}</strong></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <br>
+                      <u>Requesting Member</u><br>
+                      ${memberAddressBlock}<br><br>
+                      ${startingLocationBlock}<u>Short Description</u><br>
+                      ${description || ''}<br><br>
+                      ${destinationBlock}If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style='font-size:10px;font-style:italic;color:#666666'>
+                This email was sent in response to the use of the Village Green platform by The Village Common of RI.
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return html;
+}
+
 module.exports = {
   buildHomeHelpOpenRequestTemplate,
   buildHomeHelpConfirmedRequestTemplate,
@@ -1650,6 +1778,7 @@ module.exports = {
   buildTechSupportMemberConfirmedTemplate,
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
+  buildReminderTemplate,
   buildEnrollPinTemplate,
   buildEnrollIneligibleTemplate,
   applyEnrollTestBanner,

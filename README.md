@@ -86,10 +86,38 @@ the member (skipped if the member has no email). Subject: `SR Conf #…`.
 Notifies the member, and the volunteer if one was assigned.
 Subject: `SR Cancel #…`.
 
-### `reminder`
+### `reminder` — service is two days away
 
-Routed but **no template exists yet** — events are logged with a warning and
-marked failed. Unknown event types are also marked failed.
+Sent to the **assigned volunteer only — never the member**. Subject:
+`SR Reminder #…`. One shared template covers all four service types;
+**Starting Location appears on rides only**.
+
+The reminder is dispatch information for the person doing the job: it says "a
+service request … for which you are scheduled" and carries the member's
+address and cell, with no volunteer contact details. A member receiving it
+would be told their own address and given no one to call. Members already learn
+who is coming from the `confirmed` email sent when the volunteer is assigned.
+
+Reminder rows are enqueued by a MySQL scheduled `EVENT` owned by the
+village-green migrations, not by the API — see `docs/examples/reminder-event.sql`
+for a documented reference implementation (prerequisite:
+`SET GLOBAL event_scheduler = ON`).
+
+**The event is recreated by hand at each DST boundary.** The production database
+runs on UTC, and `ON SCHEDULE ... STARTS` is evaluated once at `CREATE` time, so
+a daily event does not follow a DST change on its own. 7am Eastern is **11:00
+UTC during EDT** and **12:00 UTC during EST**; at each boundary, drop the event
+and recreate it with the other time. Between boundaries it fires at a stable UTC
+time, and a missed boundary sends reminders an hour early or late until fixed.
+
+Because pending rows are durable and are not age-filtered, a reminder queued
+while the sidecar is down is delivered whenever it next runs. The branch
+therefore re-checks the request at send time: anything no longer `Confirmed`,
+or that has lost its volunteer, is **marked sent without emailing** rather than
+marked failed — skipping is the correct outcome, and a `failedAt` row would
+read as a false alarm during triage.
+
+Unknown event types are marked failed.
 
 ## PIN Webhook (`POST /internal/send-pin`)
 
