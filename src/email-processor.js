@@ -184,6 +184,10 @@ function deriveRecipientsForEvent(eventType, requestData) {
     const hasVolunteer = !!requestData.volunteerPersonId
     return { sendToBccVolunteers: false, sendToVolunteer: hasVolunteer, sendToMember: true }
   }
+  // NOTE: the reminder send branch in pollOnce does NOT consult this entry - it
+  // gates each send on whether that recipient resolved to an email instead
+  // (shouldSkipReminder already guarantees an assigned volunteer). Editing the
+  // flags here will NOT change reminder routing; change the branch itself.
   if (eventType === 'reminder') {
     return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: true }
   }
