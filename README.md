@@ -86,10 +86,25 @@ the member (skipped if the member has no email). Subject: `SR Conf #…`.
 Notifies the member, and the volunteer if one was assigned.
 Subject: `SR Cancel #…`.
 
-### `reminder`
+### `reminder` — service is two days away
 
-Routed but **no template exists yet** — events are logged with a warning and
-marked failed. Unknown event types are also marked failed.
+Sent to the assigned volunteer and the member (skipped if the member has no
+email). Subject: `SR Reminder #…`. One shared template covers all four service
+types; **Starting Location appears on rides only**.
+
+Reminder rows are enqueued by a MySQL scheduled `EVENT` owned by the
+village-green migrations, not by the API — see `docs/examples/reminder-event.sql`
+for a documented reference implementation and its prerequisites
+(`mysql.time_zone_name` populated, `event_scheduler` ON).
+
+Because pending rows are durable and are not age-filtered, a reminder queued
+while the sidecar is down is delivered whenever it next runs. The branch
+therefore re-checks the request at send time: anything no longer `Confirmed`,
+or that has lost its volunteer, is **marked sent without emailing** rather than
+marked failed — skipping is the correct outcome, and a `failedAt` row would
+read as a false alarm during triage.
+
+Unknown event types are marked failed.
 
 ## PIN Webhook (`POST /internal/send-pin`)
 
