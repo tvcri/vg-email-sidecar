@@ -16,6 +16,7 @@ const {
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
   buildReminderTemplate,
+  buildMemberReminderTemplate,
 } = require('./src/templates');
 
 const volunteerData = {
@@ -144,12 +145,17 @@ const renders = [
   ['cancel-errands.html',      buildCancelledTemplate('Joanne', errandsRequest)],
   ['cancel-rides-member.html', buildMemberCancelledTemplate('Zelda', ridesRequest)],
   ['cancel-errands-member.html', buildMemberCancelledTemplate('Zelda', errandsRequest)],
-  // Reminder notices go to the assigned volunteer only (never the member) two
-  // days before the service date. Starting Location appears on rides only.
+  // Reminder notices go to the assigned volunteer and the member two days
+  // before the service date. Volunteer reminders show Starting Location on
+  // rides only; member reminders never show it (customer template, 2026-07-24).
   ['reminder-rides.html',   buildReminderTemplate('Joanne', ridesRequest)],
   ['reminder-errands.html', buildReminderTemplate('Joanne', errandsRequest)],
   ['reminder-homhelp.html', buildReminderTemplate('Joanne', homeHelpRequest)],
   ['reminder-techsup.html', buildReminderTemplate('Joanne', techRequest)],
+  ['reminder-member-rides.html',   buildMemberReminderTemplate('Zelda', volunteerData, ridesRequest)],
+  ['reminder-member-errands.html', buildMemberReminderTemplate('Zelda', volunteerData, errandsRequest)],
+  ['reminder-member-homhelp.html', buildMemberReminderTemplate('Zelda', volunteerData, homeHelpRequest)],
+  ['reminder-member-techsup.html', buildMemberReminderTemplate('Zelda', volunteerData, techRequest)],
 ];
 
 for (const [filename, html] of renders) {
