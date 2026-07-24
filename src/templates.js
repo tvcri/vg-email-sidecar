@@ -1763,6 +1763,103 @@ function buildReminderTemplate(recipientFirstName, requestData) {
   return html;
 }
 
+// Member-facing reminder - one layout for every service type (customer
+// template, 2026-07-24; scratch/template-reminder-member.pdf). Unlike the
+// volunteer reminder there is no Requesting Member block, no Starting
+// Location, and no Destination: the member knows their own address, and the
+// provider section replaces the dispatch detail.
+function buildMemberReminderTemplate(memberFirstName, volunteerData, requestData) {
+  requestData = withBlankAddressNulls(requestData);
+  const {
+    serviceName,
+    description,
+    serviceDate,
+    timesFlexible,
+    startTime,
+  } = requestData;
+
+  const dateOnly = formatServiceDate(serviceDate);
+  const timeOnly = formatCivilTime(startTime);
+  // Rides carry a startTime; the other service types are flagged flexible. The
+  // distinction is in the data, so no service-type check is needed here.
+  const dateTime = startTime && !timesFlexible && timeOnly
+    ? `${dateOnly} at ${timeOnly}`
+    : `${dateOnly} &nbsp;(The time is flexible)`;
+
+  // PDF order: name, phone, email. Cell preferred over landline, as in the
+  // member-confirmed templates.
+  const providerContact = [
+    volunteerData.fullName,
+    volunteerData.cell ? `${volunteerData.cell} (cell)` : (volunteerData.phone || ''),
+    volunteerData.email ? `<a href='mailto:${volunteerData.email}'>${volunteerData.email}</a>` : '',
+  ].filter(Boolean).join('<br>');
+
+  const html = `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <table border='0' cellpadding='50' cellspacing='0' style='background-color: #b2b2b2;width: 100%;'>
+    <tr>
+      <td align='center'>
+        <table border='0' cellpadding='4' cellspacing='0' style='background-color:white; width:600px;border-width:1px;border-color:Black; border-style:solid;border-radius:10px;'>
+          <tr>
+            <td>
+              <table cellpadding='0' cellspacing='0' border='0'>
+                <tr>
+                  <td style='font-weight: bold; font-size: 24px; font-family: Arial, Sans-Serif;padding:10px 5px;border-bottom:1px solid #cdcdcd;width:100%;'>
+                    The Village Common of RI
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table cellpadding='15' cellspacing='0' border='0'>
+                <tr>
+                  <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
+                    Hello ${memberFirstName}.<br>
+                    This is a reminder about a service you requested with <strong>The Village Common of RI</strong>.<br><br>
+                    <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
+                      <table cellpadding='0' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                        <tbody>
+                          <tr>
+                            <td valign='top' style='padding-right:12px;padding-bottom:3px;'>Service:</td>
+                            <td valign='top' style='padding-bottom:3px;'><strong>${serviceName}</strong></td>
+                          </tr>
+                          <tr>
+                            <td valign='top' style='padding-right:12px;'>Date/Time:</td>
+                            <td valign='top'><strong>${dateTime}</strong></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <br>
+                      <u>Your service provider(s)</u><br>
+                      ${providerContact}<br><br>
+                      <u>Short Description</u><br>
+                      ${description || ''}<br><br>
+                      If you have any questions or need to cancel this service, please call 401-441-5240 or reply to the email.<br>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style='font-size:10px;font-style:italic;color:#666666'>
+                This email was sent in response to the use of the Village Green platform by The Village Common of RI.
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return html;
+}
+
 module.exports = {
   buildHomeHelpOpenRequestTemplate,
   buildHomeHelpConfirmedRequestTemplate,
@@ -1779,6 +1876,7 @@ module.exports = {
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
   buildReminderTemplate,
+  buildMemberReminderTemplate,
   buildEnrollPinTemplate,
   buildEnrollIneligibleTemplate,
   applyEnrollTestBanner,
