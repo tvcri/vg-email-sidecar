@@ -189,6 +189,18 @@ function deriveRecipientsForEvent(eventType, requestData) {
   return { sendToBccVolunteers: false, sendToVolunteer: false, sendToMember: false }
 }
 
+// A reminder row is enqueued at 07:00 ET, but pending rows are durable and the
+// pending-events query has no age filter - if the sidecar is down or behind at
+// that moment, the row is delivered whenever it next runs. Re-check the request
+// at send time so a request cancelled during that gap does not get a reminder.
+// status is already on the row getServiceRequest() fetched, so this costs no
+// extra query.
+function shouldSkipReminder(requestData) {
+  if (requestData.status !== 'Confirmed') return true;
+  if (!requestData.volunteerPersonId) return true;
+  return false;
+}
+
 async function resolveRecipientsForOpenRequest(requestData) {
   const testConfig = getTestConfig();
   const capability = getCapabilityFromServiceType(requestData.serviceName);
@@ -553,4 +565,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription, shouldSkipReminder };
