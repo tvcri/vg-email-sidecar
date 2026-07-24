@@ -24,6 +24,7 @@ const {
   buildTechSupportMemberConfirmedTemplate,
   buildCancelledTemplate,
   buildMemberCancelledTemplate,
+  buildReminderTemplate,
   buildEnrollIneligibleTemplate,
   applyEnrollTestBanner,
 } = require('./templates');
@@ -334,6 +335,49 @@ async function resolveRecipientsForCancelledRequest(requestData) {
   };
 }
 
+// Mirrors resolveRecipientsForCancelledRequest. Callers must have already run
+// shouldSkipReminder, so volunteerPersonId is guaranteed non-null here.
+async function resolveRecipientsForReminder(requestData) {
+  const testConfig = getTestConfig();
+
+  const volunteer = await getPerson(requestData.volunteerPersonId);
+
+  if (!volunteer || !volunteer.email) {
+    console.warn(`Volunteer person not found or has no email: ${requestData.volunteerPersonId}`);
+  }
+
+  const memberEmail = requestData.memberEmail;
+
+  const intendedRecipients = [];
+  if (volunteer && volunteer.email) {
+    intendedRecipients.push({ fullName: volunteer.fullName, email: volunteer.email });
+  }
+  if (memberEmail) {
+    intendedRecipients.push({ fullName: requestData.memberName, email: memberEmail });
+  }
+
+  if (testConfig.overrideRecipients) {
+    console.log(`[TEST MODE] Using override recipients: ${testConfig.overrideRecipients.join(', ')}`);
+    return {
+      volunteerEmail: (volunteer && volunteer.email) ? testConfig.overrideRecipients.join(', ') : null,
+      memberEmail: memberEmail ? testConfig.overrideRecipients.join(', ') : null,
+      volunteer,
+      memberName: requestData.memberName,
+      intendedRecipients,
+      isTestMode: true,
+    };
+  }
+
+  return {
+    volunteerEmail: (volunteer && volunteer.email) ? volunteer.email : null,
+    memberEmail: memberEmail || null,
+    volunteer,
+    memberName: requestData.memberName,
+    intendedRecipients: null,
+    isTestMode: false,
+  };
+}
+
 async function pollOnce() {
   const events = await getPendingEmailEvents();
 
@@ -545,9 +589,64 @@ async function pollOnce() {
         }
 
       } else if (event.eventType === 'reminder') {
-        console.warn(`[${new Date().toISOString()}] No template yet for eventType=${event.eventType}, marking failed`);
-        await markNotificationFailed(event.id);
-        failed++;
+        if (shouldSkipReminder(requestData)) {
+          console.log(`[${new Date().toISOString()}] SR #${requestData.id} is ${requestData.status} with volunteer ${requestData.volunteerPersonId || 'none'}; skipping reminder`);
+          await markNotificationSent(event.id, []);
+          sent++;
+          continue;
+        }
+
+        const recipients = await resolveRecipientsForReminder(requestData);
+        const baseSubject = `SR Reminder #${subjectNumber}-For ${requestData.memberName}-Service Date: ${formatDateForSubject(requestData.serviceDate)}`;
+        const subject = buildSubject(baseSubject, recipients.isTestMode);
+
+        // Each email's banner names only its own intended recipient, not the
+        // combined list of everyone notified for this event.
+        const volunteerIntended = recipients.volunteer
+          ? (recipients.intendedRecipients || []).find(r => r.email === recipients.volunteer.email)
+          : null;
+        const memberIntended = (recipients.intendedRecipients || []).find(r => r.fullName === recipients.memberName);
+
+        let anySuccess = false;
+
+        if (recipients.volunteerEmail) {
+          const html = buildReminderTemplate(getFirstName(recipients.volunteer.fullName), requestData);
+          const finalHtml = recipients.isTestMode && volunteerIntended
+            ? applyTestBanner(html, `${volunteerIntended.fullName} (${volunteerIntended.email})`)
+            : html;
+          const result = await sendEmail({ to: recipients.volunteerEmail, subject, html: finalHtml, kind: event.eventType });
+          if (result.success) {
+            console.log(`[${new Date().toISOString()}] Volunteer reminder email sent: ${subject}`);
+            recipientPersonIds.push(recipients.volunteer.id);
+            anySuccess = true;
+          } else {
+            console.error(`[${new Date().toISOString()}] Failed to send volunteer reminder email: ${result.error}`);
+          }
+        }
+
+        if (recipients.memberEmail) {
+          const html = buildReminderTemplate(getFirstName(recipients.memberName), requestData);
+          const finalHtml = recipients.isTestMode && memberIntended
+            ? applyTestBanner(html, `${memberIntended.fullName} (${memberIntended.email})`)
+            : html;
+          const result = await sendEmail({ to: recipients.memberEmail, subject, html: finalHtml, kind: event.eventType });
+          if (result.success) {
+            console.log(`[${new Date().toISOString()}] Member reminder email sent: ${subject}`);
+            if (requestData.memberPersonId) recipientPersonIds.push(Number(requestData.memberPersonId));
+            anySuccess = true;
+          } else {
+            console.error(`[${new Date().toISOString()}] Failed to send member reminder email: ${result.error}`);
+          }
+        }
+
+        if (anySuccess) {
+          await markNotificationSent(event.id, recipientPersonIds);
+          sent++;
+        } else {
+          console.warn(`[${new Date().toISOString()}] SR #${requestData.id} reminder had no reachable recipients`);
+          await markNotificationFailed(event.id);
+          failed++;
+        }
 
       } else {
         console.warn(`[${new Date().toISOString()}] Unknown eventType=${event.eventType}`);
