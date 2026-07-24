@@ -94,8 +94,15 @@ types; **Starting Location appears on rides only**.
 
 Reminder rows are enqueued by a MySQL scheduled `EVENT` owned by the
 village-green migrations, not by the API — see `docs/examples/reminder-event.sql`
-for a documented reference implementation and its prerequisites
-(`mysql.time_zone_name` populated, `event_scheduler` ON).
+for a documented reference implementation (prerequisite:
+`SET GLOBAL event_scheduler = ON`).
+
+**The event is recreated by hand at each DST boundary.** The production database
+runs on UTC, and `ON SCHEDULE ... STARTS` is evaluated once at `CREATE` time, so
+a daily event does not follow a DST change on its own. 7am Eastern is **11:00
+UTC during EDT** and **12:00 UTC during EST**; at each boundary, drop the event
+and recreate it with the other time. Between boundaries it fires at a stable UTC
+time, and a missed boundary sends reminders an hour early or late until fixed.
 
 Because pending rows are durable and are not age-filtered, a reminder queued
 while the sidecar is down is delivered whenever it next runs. The branch

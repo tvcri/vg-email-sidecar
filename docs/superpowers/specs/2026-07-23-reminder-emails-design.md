@@ -191,20 +191,17 @@ tracked by issue #2; the reminder branch stays consistent rather than diverging.
 ### 3. Enqueue EVENT — documented example
 
 ```sql
--- Runs hourly and acts only at 07:00 America/New_York, so it stays at 7am
--- across DST. A fixed-UTC daily schedule cannot: 7am ET is 11:00 UTC in summer
--- but 12:00 UTC in winter, and a STARTS expression is evaluated once at CREATE
--- time and then advanced by exactly 24h forever.
+-- 11:00 UTC = 7am EDT. In winter use 12:00 UTC (7am EST) - see DST below.
 CREATE EVENT vg_reminder_enqueue
-ON SCHEDULE EVERY 1 HOUR
+ON SCHEDULE EVERY 1 DAY
+STARTS '2026-07-24 11:00:00'
 DO
   INSERT INTO notification_event (eventType, serviceRequestId)
   SELECT 'reminder', sr.id
   FROM service_request sr
-  WHERE HOUR(CONVERT_TZ(NOW(), 'UTC', 'America/New_York')) = 7
-    AND sr.status = 'Confirmed'
+  WHERE sr.status = 'Confirmed'
     AND sr.volunteerPersonId IS NOT NULL
-    AND sr.serviceDate = DATE(CONVERT_TZ(NOW(), 'UTC', 'America/New_York')) + INTERVAL 2 DAY
+    AND sr.serviceDate = DATE(NOW()) + INTERVAL 2 DAY
     AND NOT EXISTS (
       SELECT 1 FROM notification_event ne
       WHERE ne.serviceRequestId = sr.id
@@ -214,13 +211,33 @@ DO
 Insert shape matches `ServiceRequestService.writeNotificationEvent`:
 `INSERT INTO notification_event (eventType, serviceRequestId)`.
 
-**Idempotent.** The `NOT EXISTS` guard means an hourly re-run, a scheduler
-restart, or a manual re-run cannot double-queue a reminder.
+**DST — operational decision (customer, 2026-07-23).** The production database
+runs on UTC and `ON SCHEDULE ... STARTS` is evaluated **once, at `CREATE` time**,
+then advanced by exactly 24h forever — so a daily event does not follow a DST
+change on its own. 7am ET is **11:00 UTC during EDT** and **12:00 UTC during
+EST** (both verified against the dev DB).
 
-**Wall-clock comparison.** `serviceDate` is a civil date and is compared against
-ET "today" + 2 days — consistent with this repo's wall-clock rule. Never
-compared against a UTC `CURDATE()`, which would be the wrong calendar day for
-part of every day.
+The accepted practice is to **drop and recreate the event at each DST boundary**
+with the correct UTC time, rather than making the event self-adjusting. An
+earlier draft ran the event hourly and gated the body on the Eastern hour; that
+was rejected as 24× the firings to avoid a twice-yearly manual step. Between
+boundaries the event fires at a stable UTC time; a missed boundary sends
+reminders an hour early or late until corrected, which is tolerable for this
+notice.
+
+This also removes the `CONVERT_TZ` dependency entirely, and with it the
+`mysql.time_zone_name` failure mode (an unpopulated table makes `CONVERT_TZ`
+return `NULL`, silently matching no rows).
+
+**Idempotent.** The `NOT EXISTS` guard means a re-run, a scheduler restart, or a
+manual re-run cannot double-queue a reminder.
+
+**Wall-clock comparison.** `serviceDate` is a civil date compared against a bare
+date — consistent with this repo's wall-clock rule. Plain `DATE(NOW())` is
+correct **because the event fires mid-morning UTC**, where the UTC and Eastern
+calendar dates agree. Verified boundaries: at 03:00 UTC (EDT) and 04:00 UTC
+(EST) the Eastern date is still the previous day, so an event scheduled before
+04:00/05:00 UTC would need the Eastern date computed explicitly.
 
 **Selectivity** (measured against the dev-DB snapshot, 2026-07-23). Live
 `service_request` statuses are `Completed`, `Confirmed`, `Member cancelled`,
@@ -233,13 +250,11 @@ through the serial poll loop.
 
 **Prerequisites** (verified against the dev DB, MySQL 8.4.2, 2026-07-23):
 
-- `mysql.time_zone_name` must be populated or `CONVERT_TZ` returns `NULL` and
-  the `WHERE` silently matches nothing. Verified working on dev:
-  `CONVERT_TZ('2026-07-24 07:00:00','America/New_York','UTC')` → `11:00`
-  (summer) and `2026-01-24` → `12:00` (winter).
-- `@@event_scheduler` must be `ON` (verified `ON` on dev).
+- `@@event_scheduler` must be `ON` (verified `ON` on dev). This is the only
+  prerequisite; the final design uses no `CONVERT_TZ`, so the timezone tables
+  are not required.
 - Note the brief's "1100 UTC" is 7am ET **only during EDT**; in winter 7am ET is
-  1200 UTC. This is precisely why the hour gate lives in the body.
+  1200 UTC. Hence the twice-yearly recreate.
 
 ### 4. Tests & preview
 
