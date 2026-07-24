@@ -30,14 +30,13 @@ test('cancelled without volunteer sends to member only', () => {
   assert.equal(result.sendToBccVolunteers, false)
 })
 
-// Reminders go to the assigned volunteer ONLY. The customer's sample emails
-// were all addressed to the volunteer (the member is a different person, named
-// in the body), the copy reads "for which you are scheduled", and the body
-// carries no volunteer contact info - it is dispatch detail, not a member notice.
-test('reminder sends to the volunteer only, never the member', () => {
+// Reminders go to the assigned volunteer AND the member. Originally
+// volunteer-only; the customer supplied a member-facing reminder template on
+// 2026-07-24 (docs/superpowers/specs/2026-07-24-member-reminder-emails-design.md).
+test('reminder sends to the volunteer and the member', () => {
   const result = deriveRecipientsForEvent('reminder', { volunteerPersonId: 42 })
   assert.equal(result.sendToVolunteer, true)
-  assert.equal(result.sendToMember, false)
+  assert.equal(result.sendToMember, true)
   assert.equal(result.sendToBccVolunteers, false)
 })
 

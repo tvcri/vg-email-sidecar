@@ -184,20 +184,18 @@ function deriveRecipientsForEvent(eventType, requestData) {
     const hasVolunteer = !!requestData.volunteerPersonId
     return { sendToBccVolunteers: false, sendToVolunteer: hasVolunteer, sendToMember: true }
   }
-  // Reminders go to the ASSIGNED VOLUNTEER ONLY - never the member. All four
-  // customer sample emails were addressed to the volunteer (the requesting
-  // member is a different person, named in the body), the copy reads "a service
-  // request ... for which you are scheduled", and the body carries the member's
-  // address and cell as dispatch detail for someone travelling to the job. A
-  // member receiving it would be told their own address with no volunteer
-  // contact info; they already got that in the confirmation email.
+  // Reminders go to the assigned volunteer AND the member. Originally
+  // volunteer-only (the customer's first four sample emails were all
+  // volunteer-facing); on 2026-07-24 the customer supplied a member-facing
+  // reminder template, so the member now gets one too - see
+  // docs/superpowers/specs/2026-07-24-member-reminder-emails-design.md.
   //
   // NOTE: the reminder send branch in pollOnce does NOT consult this entry - it
-  // gates on whether the volunteer resolved to an email (shouldSkipReminder
+  // gates on what resolveRecipientsForReminder resolved (shouldSkipReminder
   // already guarantees an assigned volunteer). Editing the flags here will NOT
   // change reminder routing; change the branch itself.
   if (eventType === 'reminder') {
-    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: false }
+    return { sendToBccVolunteers: false, sendToVolunteer: true, sendToMember: true }
   }
   return { sendToBccVolunteers: false, sendToVolunteer: false, sendToMember: false }
 }
