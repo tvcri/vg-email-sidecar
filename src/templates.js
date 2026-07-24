@@ -1676,21 +1676,24 @@ function buildReminderTemplate(recipientFirstName, requestData) {
 
   const memberAddressBlock = memberAddress
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}${memberCell ? `<br><br>${memberCell} (cell)` : ''}`
-    : (memberName || '');
+    : `${memberName || ''}${memberCell ? `<br><br>${memberCell} (cell)` : ''}`;
 
+  // Starting Location is its own underlined heading (not a two-column row) so
+  // its content sits at the same left margin as every other section - matching
+  // the customer's layout, where only Service/Date-Time are a label/value pair.
   const isRide = !!serviceName && serviceName.startsWith('Ride:');
-  const startingLocationRow = isRide
-    ? `<tr>
-                            <td valign='top'>Starting Location:</td>
-                            <td valign='top'>${formatStartingLocation(requestData)}</td>
-                          </tr>`
+  const startingLocationBlock = isRide
+    ? `<u>Starting Location</u><br>
+                    ${formatStartingLocation(requestData)}<br><br>`
     : '';
 
   const destinationAddress = destination && address
     ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}`
     : (destination || '');
   const destinationBlock = destination
-    ? `<u>Destination</u><br>${destinationAddress}<br><br>`
+    ? `<u>Destination</u><br>
+                      ${destinationAddress}<br><br>
+                      `
     : '';
 
   const html = `<html>
@@ -1717,30 +1720,25 @@ function buildReminderTemplate(recipientFirstName, requestData) {
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     This is a reminder about a service request with <strong>The Village Common of RI</strong> for which you are scheduled.<br><br>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
-                      <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
+                      <table cellpadding='0' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
                           <tr>
-                            <td valign='top'>Service:</td>
-                            <td valign='top'><strong>${serviceName}</strong></td>
+                            <td valign='top' style='padding-right:12px;padding-bottom:3px;'>Service:</td>
+                            <td valign='top' style='padding-bottom:3px;'><strong>${serviceName}</strong></td>
                           </tr>
                           <tr>
-                            <td valign='top'>Date/Time:</td>
+                            <td valign='top' style='padding-right:12px;'>Date/Time:</td>
                             <td valign='top'><strong>${dateTime}</strong></td>
                           </tr>
-                          <tr>
-                            <td valign='top'>Requesting Member:</td>
-                            <td valign='top'>
-                              ${memberAddressBlock}
-                            </td>
-                          </tr>
-                          ${startingLocationRow}
                         </tbody>
                       </table>
+                      <br>
+                      <u>Requesting Member</u><br>
+                      ${memberAddressBlock}<br><br>
+                      ${startingLocationBlock}<u>Short Description</u><br>
+                      ${description || ''}<br><br>
+                      ${destinationBlock}If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     </div>
-                    <u>Short Description</u><br>
-                    ${description || ''}<br><br>
-                    ${destinationBlock}
-                    If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                   </td>
                 </tr>
               </table>

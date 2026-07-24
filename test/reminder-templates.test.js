@@ -103,6 +103,36 @@ test('renders the requesting member block with the home address and cell', () =>
   assert.match(html, /401-465-0405 \(cell\)/)
 })
 
+// Layout pin. The customer's template puts only Service/Date-Time in a
+// two-column label/value table; every other section is an underlined heading
+// with its content flush beneath, all at ONE left margin. Mixing the two
+// (a "Requesting Member:" table row alongside full-width headings) is what
+// produced the ragged left edge these assertions exist to prevent.
+test('all sections share a single left margin', () => {
+  const html = buildReminderTemplate('Joanne', ridesRequest)
+
+  const start = html.indexOf('margin-left:15px')
+  assert.ok(start !== -1, 'expected an indented content block')
+  const block = html.slice(start, html.indexOf('</div>', start))
+
+  for (const section of ['Requesting Member', 'Starting Location', 'Short Description', 'Destination', '401-441-5240']) {
+    assert.ok(block.includes(section), `${section} must sit inside the shared margin block`)
+  }
+  // A nested div would reintroduce a second indent level.
+  assert.equal((block.match(/<div/g) || []).length, 0)
+})
+
+test('renders section labels as underlined headings, not table rows', () => {
+  const html = buildReminderTemplate('Joanne', ridesRequest)
+  for (const section of ['Requesting Member', 'Starting Location', 'Short Description', 'Destination']) {
+    assert.match(html, new RegExp(`<u>${section}</u>`), `${section} should be an underlined heading`)
+    assert.doesNotMatch(html, new RegExp(`<td[^>]*>${section}:</td>`), `${section} should not be a two-column row`)
+  }
+  // Service and Date/Time remain a label/value pair, as in the customer template.
+  assert.match(html, /<td[^>]*>Service:<\/td>/)
+  assert.match(html, /<td[^>]*>Date\/Time:<\/td>/)
+})
+
 test('shows Starting Location for rides only', () => {
   const ridesHtml = buildReminderTemplate('Joanne', ridesRequest)
   assert.match(ridesHtml, /Starting Location/)
