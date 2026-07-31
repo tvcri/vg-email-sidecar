@@ -584,7 +584,7 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
 
   const startDate = formatServiceDate(serviceDate);
   const memberAddressBlock = memberAddress
-    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `${memberCell} (cell)` : ''}`
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone ? `${memberPhone}<br>` : ''}${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
   const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
@@ -703,7 +703,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
 
   const startDate = formatServiceDate(serviceDate);
   const memberAddressBlock = memberAddress
-    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberCell ? `cell: ${memberCell}` : ''}`
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone ? `${memberPhone}<br>` : ''}${memberCell ? `cell: ${memberCell}` : ''}`
     : '';
   const startingLocation = formatStartingLocation(requestData);
   const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
@@ -819,7 +819,7 @@ function buildTechSupportOpenRequestTemplate(volunteerName, requestData) {
   } = requestData;
 
   const memberAddressBlock = memberAddress
-    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>Home:<br>Cell: ${memberCell || ''}`
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone ? `Home: ${memberPhone}<br>` : ''}${memberCell ? `Cell: ${memberCell}` : ''}`
     : '';
 
   const html = `<html>
@@ -1656,6 +1656,7 @@ function buildReminderTemplate(recipientFirstName, requestData) {
     memberCity,
     memberState,
     memberZip,
+    memberPhone,
     memberCell,
     description,
     destination,
@@ -1676,9 +1677,16 @@ function buildReminderTemplate(recipientFirstName, requestData) {
     ? `${dateOnly} at ${timeOnly}`
     : `${dateOnly} &nbsp;(The time is flexible)`;
 
+  // Members with a landline and no cell are common, so the reminder must fall
+  // back to the landline - otherwise the volunteer gets no way to phone ahead.
+  const memberPhones = [
+    memberPhone || '',
+    memberCell ? `${memberCell} (cell)` : '',
+  ].filter(Boolean).join('<br>');
+
   const memberAddressBlock = memberAddress
-    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}${memberCell ? `<br><br>${memberCell} (cell)` : ''}`
-    : `${memberName || ''}${memberCell ? `<br><br>${memberCell} (cell)` : ''}`;
+    ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}${memberPhones ? `<br><br>${memberPhones}` : ''}`
+    : `${memberName || ''}${memberPhones ? `<br><br>${memberPhones}` : ''}`;
 
   // Starting Location is its own underlined heading (not a two-column row) so
   // its content sits at the same left margin as every other section - matching
