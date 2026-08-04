@@ -35,7 +35,7 @@ Welcome to The Village Common of Rhode Island!
 Your membership has been activated by our membership coordinator based on
 your completed application.
 
-**This email confirms your new membership in <village> village.**   <- bold
+**This email confirms your new membership in <village> Village.**   <- bold
 
 To access our website, visit www.villagecommonri.org. This is where you can
 find information on upcoming events and other programming.
@@ -58,9 +58,10 @@ in the body is a link.
 The bold sentence is a 2026-08-04 customer correction to the approved draft
 (which read "membership for your village"): "for" becomes "in", and the
 member's actual village name is substituted — e.g. "membership in Wood River
-village." `village.name` stores the bare name ("Wood River"), so the template
-appends the word "village". When the member's `person.villageId` is NULL, fall
-back to the original generic wording, "membership in your village."
+Village." `village.name` stores the bare name ("Wood River"), so the template
+appends the title-case word "Village" (customer usage). When the member's
+`person.villageId` is NULL, fall back to the original generic wording,
+"membership in your village."
 
 ## Scope
 
@@ -116,8 +117,9 @@ Plain `<p>`-body style like the enroll templates (Arial, Sans-Serif, 12px
 inline body style) — **not** the nested-table SR chrome. Greeting is
 `Dear <firstName>,` with the enroll templates' `Hello,` fallback when
 `firstName` is empty. Body is the approved copy above: bold confirmation
-sentence via `<b>` reading `membership in <villageName> village.` (or
-`membership in your village.` when `villageName` is empty),
+sentence via `<b>` reading `membership in <villageName> Village.` (or
+`membership in your village.` when `villageName` is empty — lowercase, since
+there the word is generic rather than part of a proper name),
 `www.villagecommonri.org` as an `<a href="http://www.villagecommonri.org">`
 link, office number 401-228-8683 as text, ending at "The Village Common of
 Rhode Island".
@@ -156,7 +158,7 @@ never reaches the SR routing logic.
 
 - Renders the greeting with first name; `Hello,` fallback without one.
 - Contains the key copy: activation sentence, bold confirmation sentence with
-  the village name ("membership in Wood River village."), website link,
+  the village name ("membership in Wood River Village."), website link,
   401-228-8683, "We hope to see you soon!", and the sign-off.
 - NULL/empty `villageName` renders the "membership in your village." fallback
   (and no literal "null").
