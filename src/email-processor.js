@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 const {
   markNotificationSent,
   markNotificationFailed,
@@ -27,8 +30,19 @@ const {
   buildReminderTemplate,
   buildMemberReminderTemplate,
   buildEnrollIneligibleTemplate,
+  buildMemberWelcomeTemplate,
   applyEnrollTestBanner,
 } = require('./templates');
+
+// Logo attached inline to member_welcome emails (see buildMemberWelcomeTemplate,
+// which references it as cid:tvcri-logo). Loaded once at require time: the file
+// is small, static, and ships in the image (Dockerfile COPYs assets/), so a
+// missing file is a broken deployment and should fail fast at startup.
+const WELCOME_LOGO = {
+  cid: 'tvcri-logo',
+  contentType: 'image/jpeg',
+  content: fs.readFileSync(path.join(__dirname, '..', 'assets', 'tvcri-logo.jpg')).toString('base64'),
+};
 
 const SERVICE_TYPE_TO_CAPABILITY = {
   'Ride: Medical Appnt': 'Rides',
@@ -447,6 +461,50 @@ async function pollOnce() {
           sent++;
         } else {
           console.error(`[${new Date().toISOString()}] Failed to send enrollment ineligible email: ${result.error}`);
+          await markNotificationFailed(event.id);
+          failed++;
+        }
+        continue;
+      }
+
+      if (event.eventType === 'member_welcome') {
+        // Payload-driven event: no service request. Enqueued by the VG app
+        // when the membership coordinator activates a membership.
+        const payload = typeof event.payload === 'string'
+          ? JSON.parse(event.payload)
+          : (event.payload || {});
+        if (!payload.memberPersonId) {
+          console.error(`member_welcome event #${event.id} has no payload memberPersonId`);
+          await markNotificationFailed(event.id);
+          failed++;
+          continue;
+        }
+        // Look the person up at send time so the email uses fresh name/email
+        // (and the village for the confirmation sentence).
+        const person = await getPerson(payload.memberPersonId);
+        if (!person || !person.email) {
+          console.error(`member_welcome event #${event.id}: person ${payload.memberPersonId} not found or has no email`);
+          await markNotificationFailed(event.id);
+          failed++;
+          continue;
+        }
+        const testConfig = getTestConfig();
+        const to = testConfig.overrideRecipients ? testConfig.overrideRecipients.join(', ') : person.email;
+        const subject = buildSubject('Welcome to The Village Common of Rhode Island!', !!testConfig.overrideRecipients);
+        let html = buildMemberWelcomeTemplate({
+          firstName: getFirstName(person.fullName),
+          villageName: person.villageName,
+        });
+        if (testConfig.overrideRecipients) {
+          html = applyEnrollTestBanner(html, person.email);
+        }
+        const result = await sendEmail({ to, subject, html, kind: event.eventType, inlineImages: [WELCOME_LOGO] });
+        if (result.success) {
+          console.log(`[${new Date().toISOString()}] Member welcome email sent to person #${person.id}`);
+          await markNotificationSent(event.id, [person.id]);
+          sent++;
+        } else {
+          console.error(`[${new Date().toISOString()}] Failed to send member welcome email: ${result.error}`);
           await markNotificationFailed(event.id);
           failed++;
         }

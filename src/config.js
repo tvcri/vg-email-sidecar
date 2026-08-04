@@ -3,8 +3,7 @@ const DEFAULT_DISPLAY_NAME = 'The Village Common of RI';
 
 // Sending mailbox per message kind (customer assignments, 2026-07-14).
 // Kinds are notification_event.eventType values plus sidecar-internal kinds
-// (enroll_pin is the webhook PIN send). member_welcome is reserved for a
-// planned event type that has no handler yet. Unlisted kinds -> DEFAULT_MAILBOX.
+// (enroll_pin is the webhook PIN send). Unlisted kinds -> DEFAULT_MAILBOX.
 const MAILBOX_BY_KIND = {
   open: 'services@villagecommonri.org',
   confirmed: 'services@villagecommonri.org',
