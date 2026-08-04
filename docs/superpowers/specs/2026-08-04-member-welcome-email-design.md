@@ -35,7 +35,7 @@ Welcome to The Village Common of Rhode Island!
 Your membership has been activated by our membership coordinator based on
 your completed application.
 
-**This email confirms your new membership for your village.**   <- bold
+**This email confirms your new membership in <village> village.**   <- bold
 
 To access our website, visit www.villagecommonri.org. This is where you can
 find information on upcoming events and other programming.
@@ -55,12 +55,20 @@ Laurenzo", "Member & Volunteer Coordinator", "ext. 2", website link line) and
 **no** logo image. The one bold sentence is preserved; www.villagecommonri.org
 in the body is a link.
 
+The bold sentence is a 2026-08-04 customer correction to the approved draft
+(which read "membership for your village"): "for" becomes "in", and the
+member's actual village name is substituted — e.g. "membership in Wood River
+village." `village.name` stores the bare name ("Wood River"), so the template
+appends the word "village". When the member's `person.villageId` is NULL, fall
+back to the original generic wording, "membership in your village."
+
 ## Scope
 
 `vg-email-sidecar` only. The **producer is out of scope**: the main
 village-green app will insert the event row when the coordinator activates a
 membership — separate work in that repo, against the contract below. No
-changes to `queries.js`, `db.js`, `gmail.js`, or `http-listener.js`.
+changes to `db.js`, `gmail.js`, or `http-listener.js`; `queries.js` gets one
+extension to `GET_PERSON` (below).
 
 ## Event contract (for the VG-side producer)
 
@@ -80,25 +88,43 @@ VALUES ('member_welcome', NULL, '{"memberPersonId": <person.id>}');
 
 ## Design
 
-### 1. Template — `src/templates.js`
+### 1. Query — `src/queries.js`
+
+`GET_PERSON` gains the person's village name via a join:
+
+```sql
+SELECT p.id, p.fullName, p.email, p.phone, p.cell, v.name AS villageName
+FROM person p
+LEFT JOIN village v ON p.villageId = v.id
+WHERE p.id = ?
+```
+
+`villageName` is NULL when the person has no village. The extra field is
+harmless to the existing `getPerson` callers (volunteer lookups in the
+confirmed/cancelled/reminder branches), and one query keeps the welcome
+branch to a single lookup.
+
+### 2. Template — `src/templates.js`
 
 One new builder:
 
 ```js
-buildMemberWelcomeTemplate({ firstName })
+buildMemberWelcomeTemplate({ firstName, villageName })
 ```
 
 Plain `<p>`-body style like the enroll templates (Arial, Sans-Serif, 12px
 inline body style) — **not** the nested-table SR chrome. Greeting is
 `Dear <firstName>,` with the enroll templates' `Hello,` fallback when
 `firstName` is empty. Body is the approved copy above: bold confirmation
-sentence via `<b>`, `www.villagecommonri.org` as an
-`<a href="http://www.villagecommonri.org">` link, office number 401-228-8683
-as text, ending at "The Village Common of Rhode Island".
+sentence via `<b>` reading `membership in <villageName> village.` (or
+`membership in your village.` when `villageName` is empty),
+`www.villagecommonri.org` as an `<a href="http://www.villagecommonri.org">`
+link, office number 401-228-8683 as text, ending at "The Village Common of
+Rhode Island".
 
 Exported from the module and wired into `preview-templates.js`.
 
-### 2. Send branch — `src/email-processor.js`
+### 3. Send branch — `src/email-processor.js`
 
 A new payload-driven early branch in `pollOnce`, alongside the
 `enroll_ineligible` branch (before the `getServiceRequest` call):
@@ -110,27 +136,35 @@ A new payload-driven early branch in `pollOnce`, alongside the
    `enroll_ineligible`'s missing-email handling).
 3. Subject `Welcome to The Village Common of Rhode Island!`, `[TEST]`-prefixed
    in test mode via `buildSubject`.
-4. `TEST_RECIPIENTS` override redirects the send; the banner is
+4. Template inputs: `getFirstName(person.fullName)` and `person.villageName`
+   from the extended `GET_PERSON` row.
+5. `TEST_RECIPIENTS` override redirects the send; the banner is
    `applyEnrollTestBanner(html, person.email)` — the plain-body banner variant
    that matches this template's markup.
-5. `sendEmail({ to, subject, html, kind: 'member_welcome' })` — the existing
+6. `sendEmail({ to, subject, html, kind: 'member_welcome' })` — the existing
    mailbox mapping routes it from `volunteer@villagecommonri.org`.
-6. Success → `markNotificationSent(event.id, [person.id])` (recording the
+7. Success → `markNotificationSent(event.id, [person.id])` (recording the
    member as recipient); failure → `markNotificationFailed`.
 
 `deriveRecipientsForEvent` is untouched — like `enroll_ineligible`, this event
 never reaches the SR routing logic.
 
-### 3. Tests & preview
+### 4. Tests & preview
 
 **Template tests** (new `test/member-welcome-template.test.js`, following
 `test/enroll-templates.test.js`):
 
 - Renders the greeting with first name; `Hello,` fallback without one.
-- Contains the key copy: activation sentence, bold confirmation sentence,
-  website link, 401-228-8683, "We hope to see you soon!", and the sign-off.
+- Contains the key copy: activation sentence, bold confirmation sentence with
+  the village name ("membership in Wood River village."), website link,
+  401-228-8683, "We hope to see you soon!", and the sign-off.
+- NULL/empty `villageName` renders the "membership in your village." fallback
+  (and no literal "null").
 - **Absence pins:** no "Gabriella", no "Member & Volunteer Coordinator",
   no "ext. 2", no `<img`.
+
+**Query test** (`test/service-request-query.test.js` conventions): `GET_PERSON`
+includes `villageName` and left-joins `village` (existing callers unaffected).
 
 **Processor tests** (`test/email-processor.test.js` conventions): the send
 branch lives in `pollOnce`, which the repo does not unit-test (no mocking
@@ -147,5 +181,4 @@ planned event type that has no handler yet" is updated.
 - No VG-side producer implementation (separate work, separate repo).
 - No new notification_event columns or migrations.
 - No signature block or logo image handling.
-- No per-village customization — "your village" stays generic, per the
-  approved copy.
+- No per-village customization beyond the village name in the bold sentence.
