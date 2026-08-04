@@ -753,4 +753,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription, shouldSkipReminder };
+module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription, shouldSkipReminder, WELCOME_LOGO };

@@ -1,7 +1,5 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('path');
-const fs = require('fs');
 
 const { buildMemberWelcomeTemplate } = require('../src/templates');
 
@@ -17,10 +15,11 @@ function decodeRaw(raw) {
 }
 
 // The real send path (src/email-processor.js WELCOME_LOGO) attaches the logo
-// under this literal cid. That is the "emitted Content-ID" side of the seam;
-// the template side below is parsed out of the real rendered HTML, not
-// hardcoded, so the test fails if either side is renamed independently.
-const SEND_PATH_LOGO_CID = 'tvcri-logo';
+// under WELCOME_LOGO.cid. That is the "emitted Content-ID" side of the seam;
+// the template side below is parsed out of the real rendered HTML. Both sides
+// are read from the modules under test — no cid string literal here — so the
+// test fails if either side is renamed independently.
+const { WELCOME_LOGO } = require('../src/email-processor');
 
 test('welcome template cid matches the Content-ID emitted for the real logo attachment', () => {
   const html = buildMemberWelcomeTemplate({ firstName: 'Zelda', villageName: 'Wood River' });
@@ -31,11 +30,10 @@ test('welcome template cid matches the Content-ID emitted for the real logo atta
   const templateCid = match[1];
 
   // This is the actual seam: the template's cid must equal the cid the send
-  // path attaches the logo under.
-  assert.equal(templateCid, SEND_PATH_LOGO_CID);
+  // path attaches the logo under (also read from source, not hardcoded).
+  assert.equal(templateCid, WELCOME_LOGO.cid);
 
   const { buildRawMessage } = freshGmail();
-  const logoBuffer = fs.readFileSync(path.join(__dirname, '..', 'assets', 'tvcri-logo.jpg'));
 
   const msg = decodeRaw(buildRawMessage({
     to: 'member@example.com',
@@ -43,9 +41,9 @@ test('welcome template cid matches the Content-ID emitted for the real logo atta
     html,
     from: 'The Village Common of RI <services@villagecommonri.org>',
     inlineImages: [{
-      cid: SEND_PATH_LOGO_CID,
-      contentType: 'image/jpeg',
-      content: logoBuffer.toString('base64'),
+      cid: WELCOME_LOGO.cid,
+      contentType: WELCOME_LOGO.contentType,
+      content: WELCOME_LOGO.content,
     }],
   }));
 
