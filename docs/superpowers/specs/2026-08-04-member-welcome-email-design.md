@@ -51,9 +51,10 @@ The Village Common of Rhode Island
 `(new member)` is filled with the member's **first name**
 (`getFirstName(person.fullName)`), matching the other member-facing templates.
 The email ends at the sign-off line — **no** signature block ("Gabriella
-Laurenzo", "Member & Volunteer Coordinator", "ext. 2", website link line) and
-**no** logo image. The one bold sentence is preserved; www.villagecommonri.org
-in the body is a link.
+Laurenzo", "Member & Volunteer Coordinator", "ext. 2", website link line).
+The one bold sentence is preserved; www.villagecommonri.org in the body is a
+link. The logo the signature carried is not dropped — it moves to the top of
+the email (next correction but one, below).
 
 The bold sentence is a 2026-08-04 customer correction to the approved draft
 (which read "membership for your village"): "for" becomes "in", and the
@@ -63,13 +64,24 @@ appends the title-case word "Village" (customer usage). When the member's
 `person.villageId` is NULL, fall back to the original generic wording,
 "membership in your village."
 
+A second 2026-08-04 correction: the **organization logo appears at the top**
+of the email, letterhead-style, above the greeting (the TVCRI sunrise /
+"Aging Better Together!" mark — the image the draft's deleted signature block
+carried). Top rather than bottom: the welcome email is the org's first
+official message to the member, and bottom placement would recreate the
+signature area the customer removed. The 1600×843 JPEG source is saved at
+`scratch/tvcri-logo-original.jpg` (fetched from the .eml's signature URL);
+implementation resizes it to an email-suitable copy committed under
+`assets/`.
+
 ## Scope
 
 `vg-email-sidecar` only. The **producer is out of scope**: the main
 village-green app will insert the event row when the coordinator activates a
 membership — separate work in that repo, against the contract below. No
-changes to `db.js`, `gmail.js`, or `http-listener.js`; `queries.js` gets one
-extension to `GET_PERSON` (below).
+changes to `db.js` or `http-listener.js`; `queries.js` gets one extension to
+`GET_PERSON`, and `gmail.js` gains optional inline-image support for the logo
+(both below).
 
 ## Event contract (for the VG-side producer)
 
@@ -105,7 +117,26 @@ harmless to the existing `getPerson` callers (volunteer lookups in the
 confirmed/cancelled/reminder branches), and one query keeps the welcome
 branch to a single lookup.
 
-### 2. Template — `src/templates.js`
+### 2. Logo asset + inline-image support — `assets/`, `src/gmail.js`
+
+The logo ships in the repo and is attached inline (CID), so display never
+depends on an external URL (the .eml's googleusercontent signature URL can
+vanish if the coordinator edits her Gmail signature, and some clients hide
+remote images by default).
+
+- **Asset:** `assets/tvcri-logo.jpg`, resized from
+  `scratch/tvcri-logo-original.jpg` (1600×843) to 400px wide (~retina for a
+  200px display width), committed to the repo.
+- **`buildRawMessage`** gains an optional `inlineImages` array
+  (`[{ cid, contentType, content }]`, content base64). When absent, the
+  message is built exactly as today (single-part `text/html`) — byte-for-byte
+  unchanged for all existing emails. When present, it builds
+  `multipart/related`: the HTML part first, then each image part with
+  `Content-ID: <cid>` and `Content-Disposition: inline`.
+- **`sendEmail`** passes `inlineImages` through. The welcome branch loads the
+  asset once at module scope (it is small and static).
+
+### 3. Template — `src/templates.js`
 
 One new builder:
 
@@ -114,9 +145,15 @@ buildMemberWelcomeTemplate({ firstName, villageName })
 ```
 
 Plain `<p>`-body style like the enroll templates (Arial, Sans-Serif, 12px
-inline body style) — **not** the nested-table SR chrome. Greeting is
-`Dear <firstName>,` with the enroll templates' `Hello,` fallback when
-`firstName` is empty. Body is the approved copy above: bold confirmation
+inline body style) — **not** the nested-table SR chrome. The body opens with
+the logo, letterhead-style, before the greeting:
+
+```html
+<img src="cid:tvcri-logo" width="200" alt="The Village Common of Rhode Island — Aging Better Together!">
+```
+
+Then `Dear <firstName>,` with the enroll templates' `Hello,` fallback when
+`firstName` is empty, followed by the approved copy: bold confirmation
 sentence via `<b>` reading `membership in <villageName> Village.` (or
 `membership in your village.` when `villageName` is empty — lowercase, since
 there the word is generic rather than part of a proper name),
@@ -124,9 +161,11 @@ there the word is generic rather than part of a proper name),
 link, office number 401-228-8683 as text, ending at "The Village Common of
 Rhode Island".
 
-Exported from the module and wired into `preview-templates.js`.
+Exported from the module and wired into `preview-templates.js` (the preview
+page substitutes a file path or data URI for the `cid:` reference so the
+logo renders in the browser).
 
-### 3. Send branch — `src/email-processor.js`
+### 4. Send branch — `src/email-processor.js`
 
 A new payload-driven early branch in `pollOnce`, alongside the
 `enroll_ineligible` branch (before the `getServiceRequest` call):
@@ -143,27 +182,35 @@ A new payload-driven early branch in `pollOnce`, alongside the
 5. `TEST_RECIPIENTS` override redirects the send; the banner is
    `applyEnrollTestBanner(html, person.email)` — the plain-body banner variant
    that matches this template's markup.
-6. `sendEmail({ to, subject, html, kind: 'member_welcome' })` — the existing
-   mailbox mapping routes it from `volunteer@villagecommonri.org`.
+6. `sendEmail({ to, subject, html, kind: 'member_welcome', inlineImages })` —
+   `inlineImages` carries the logo (`cid: 'tvcri-logo'`); the existing mailbox
+   mapping routes the send from `volunteer@villagecommonri.org`.
 7. Success → `markNotificationSent(event.id, [person.id])` (recording the
    member as recipient); failure → `markNotificationFailed`.
 
 `deriveRecipientsForEvent` is untouched — like `enroll_ineligible`, this event
 never reaches the SR routing logic.
 
-### 4. Tests & preview
+### 5. Tests & preview
 
 **Template tests** (new `test/member-welcome-template.test.js`, following
 `test/enroll-templates.test.js`):
 
 - Renders the greeting with first name; `Hello,` fallback without one.
+- The logo `<img src="cid:tvcri-logo"` appears exactly once, before the
+  greeting.
 - Contains the key copy: activation sentence, bold confirmation sentence with
   the village name ("membership in Wood River Village."), website link,
   401-228-8683, "We hope to see you soon!", and the sign-off.
 - NULL/empty `villageName` renders the "membership in your village." fallback
   (and no literal "null").
 - **Absence pins:** no "Gabriella", no "Member & Volunteer Coordinator",
-  no "ext. 2", no `<img`.
+  no "ext. 2".
+
+**Gmail tests** (`test/gmail.test.js` conventions): `buildRawMessage` without
+`inlineImages` is unchanged (single-part `text/html`); with `inlineImages` it
+produces `multipart/related` with the HTML part first and a `Content-ID`
+image part.
 
 **Query test** (`test/service-request-query.test.js` conventions): `GET_PERSON`
 includes `villageName` and left-joins `village` (existing callers unaffected).
@@ -182,5 +229,8 @@ planned event type that has no handler yet" is updated.
 
 - No VG-side producer implementation (separate work, separate repo).
 - No new notification_event columns or migrations.
-- No signature block or logo image handling.
+- No personal signature block (name/title/extension) — removed by the
+  customer; the logo moved to the top of the email instead.
+- No inline images for any other email kind — `inlineImages` is optional and
+  every existing send omits it.
 - No per-village customization beyond the village name in the bold sentence.
