@@ -1635,6 +1635,31 @@ function buildEnrollIneligibleTemplate({ firstName }) {
 </html>`;
 }
 
+// New-member welcome/confirmation email. Approved customer copy 2026-07-13
+// with two 2026-08-04 corrections: the personal signature block is removed
+// (the body ends at the sign-off line), and the bold sentence names the
+// member's village ("membership in Wood River Village."), falling back to the
+// generic "your village" when the member has none. The logo renders at the
+// top, letterhead-style, as a CID inline image the send path attaches — see
+// the member_welcome branch in email-processor.js.
+function buildMemberWelcomeTemplate({ firstName, villageName }) {
+  const greeting = firstName ? `Dear ${firstName},` : 'Hello,';
+  const membershipPlace = villageName ? `${villageName} Village` : 'your village';
+  return `<html>
+<body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
+  <p><img src="cid:tvcri-logo" width="200" alt="The Village Common of Rhode Island &mdash; Aging Better Together!"></p>
+  <p>${greeting}</p>
+  <p>Welcome to The Village Common of Rhode Island!</p>
+  <p>Your membership has been activated by our membership coordinator based on your completed application.</p>
+  <p><b>This email confirms your new membership in ${membershipPlace}.</b></p>
+  <p>To access our website, visit <a href="http://www.villagecommonri.org">www.villagecommonri.org</a>. This is where you can find information on upcoming events and other programming.</p>
+  <p>If you have any questions about the membership process, please contact our office at 401-228-8683.</p>
+  <p>We hope to see you soon!</p>
+  <p>The Village Common of Rhode Island</p>
+</body>
+</html>`;
+}
+
 // Reminder notice sent to the ASSIGNED VOLUNTEER ONLY (never the member) two
 // days before the service date - the copy says "for which you are scheduled"
 // and the body is dispatch detail for the person travelling to the job.
@@ -1887,6 +1912,7 @@ module.exports = {
   buildMemberReminderTemplate,
   buildEnrollPinTemplate,
   buildEnrollIneligibleTemplate,
+  buildMemberWelcomeTemplate,
   applyEnrollTestBanner,
   formatStartingLocation,
 };
