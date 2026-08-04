@@ -85,6 +85,11 @@ changes to `db.js` or `http-listener.js`; `queries.js` gets one extension to
 
 ## Event contract (for the VG-side producer)
 
+> The VG-side producer has its own handoff document with the findings needed to
+> build it — most importantly the transition-guard hazard (826 members are
+> already Active; a naive "status is Active" producer would email 712 of them).
+> See [2026-08-04-member-welcome-producer-handoff.md](2026-08-04-member-welcome-producer-handoff.md).
+
 ```sql
 INSERT INTO notification_event (eventType, serviceRequestId, payload)
 VALUES ('member_welcome', NULL, '{"memberPersonId": <person.id>}');
