@@ -71,3 +71,60 @@ test('verifyCredentials returns true when all required fields are present', () =
   fs.unlinkSync(TEMP_KEY);
   delete process.env.GMAIL_SA_KEY_PATH;
 });
+
+// buildRawMessage returns base64url; decode it to assert on MIME structure.
+function decodeRaw(raw) {
+  return Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+}
+
+test('buildRawMessage without inlineImages is single-part text/html', () => {
+  const { buildRawMessage } = freshGmail();
+  const msg = decodeRaw(buildRawMessage({
+    to: 'member@example.com',
+    subject: 'Hello',
+    html: '<html><body>hi</body></html>',
+    from: 'The Village Common of RI <services@villagecommonri.org>',
+  }));
+  assert.ok(msg.includes('Content-Type: text/html; charset=UTF-8'));
+  assert.ok(!msg.includes('multipart/related'));
+  assert.ok(!msg.includes('Content-ID'));
+});
+
+test('buildRawMessage with inlineImages builds multipart/related with a CID part', () => {
+  const { buildRawMessage } = freshGmail();
+  const msg = decodeRaw(buildRawMessage({
+    to: 'member@example.com',
+    subject: 'Hello',
+    html: '<html><body><img src="cid:tvcri-logo"></body></html>',
+    from: 'The Village Common of RI <volunteer@villagecommonri.org>',
+    inlineImages: [{
+      cid: 'tvcri-logo',
+      contentType: 'image/jpeg',
+      content: Buffer.from('fake-jpeg-bytes').toString('base64'),
+    }],
+  }));
+  assert.match(msg, /Content-Type: multipart\/related; boundary="[^"]+"/);
+  assert.ok(msg.includes('Content-Type: text/html; charset=UTF-8'));
+  assert.ok(msg.includes('Content-Type: image/jpeg'));
+  assert.ok(msg.includes('Content-Transfer-Encoding: base64'));
+  assert.ok(msg.includes('Content-ID: <tvcri-logo>'));
+  assert.ok(msg.includes('Content-Disposition: inline'));
+  assert.ok(msg.includes(Buffer.from('fake-jpeg-bytes').toString('base64')));
+  // HTML part comes before the image part; message ends with the closing boundary.
+  assert.ok(msg.indexOf('text/html') < msg.indexOf('image/jpeg'));
+  const boundary = msg.match(/boundary="([^"]+)"/)[1];
+  assert.ok(msg.trimEnd().endsWith(`--${boundary}--`));
+});
+
+test('buildRawMessage with an empty inlineImages array stays single-part', () => {
+  const { buildRawMessage } = freshGmail();
+  const msg = decodeRaw(buildRawMessage({
+    to: 'member@example.com',
+    subject: 'Hello',
+    html: '<html><body>hi</body></html>',
+    from: 'The Village Common of RI <services@villagecommonri.org>',
+    inlineImages: [],
+  }));
+  assert.ok(msg.includes('Content-Type: text/html; charset=UTF-8'));
+  assert.ok(!msg.includes('multipart/related'));
+});

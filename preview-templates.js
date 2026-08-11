@@ -17,6 +17,7 @@ const {
   buildMemberCancelledTemplate,
   buildReminderTemplate,
   buildMemberReminderTemplate,
+  buildMemberWelcomeTemplate,
 } = require('./src/templates');
 
 const volunteerData = {
@@ -129,6 +130,11 @@ const techRequest = {
 const outDir = path.join(__dirname, 'preview');
 fs.mkdirSync(outDir, { recursive: true });
 
+// The email references the logo as a CID inline attachment; browsers can't
+// resolve cid:, so the preview substitutes a data URI of the same asset.
+const logoDataUri = 'data:image/jpeg;base64,' +
+  fs.readFileSync(path.join(__dirname, 'assets', 'tvcri-logo.jpg')).toString('base64');
+
 const renders = [
   ['rides-volunteer.html',   buildRidesConfirmedRequestTemplate('Joanne', ridesRequest)],
   ['rides-member.html',      buildRidesMemberConfirmedTemplate('Zelda', volunteerData, ridesRequest)],
@@ -156,6 +162,11 @@ const renders = [
   ['reminder-member-errands.html', buildMemberReminderTemplate('Zelda', volunteerData, errandsRequest)],
   ['reminder-member-homhelp.html', buildMemberReminderTemplate('Zelda', volunteerData, homeHelpRequest)],
   ['reminder-member-techsup.html', buildMemberReminderTemplate('Zelda', volunteerData, techRequest)],
+  // New-member welcome/confirmation email (member_welcome events).
+  ['member-welcome.html', buildMemberWelcomeTemplate({ firstName: 'Zelda', villageName: 'Wood River' })
+    .replace('cid:tvcri-logo', logoDataUri)],
+  ['member-welcome-no-village.html', buildMemberWelcomeTemplate({ firstName: 'Zelda', villageName: null })
+    .replace('cid:tvcri-logo', logoDataUri)],
 ];
 
 for (const [filename, html] of renders) {

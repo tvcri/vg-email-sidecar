@@ -103,10 +103,14 @@ const GET_VOLUNTEER = `
   WHERE v.id = ?
 `;
 
+// villageName feeds the member_welcome template's bold sentence; NULL when the
+// person has no village. LEFT JOIN so volunteer lookups through this query are
+// unaffected.
 const GET_PERSON = `
-  SELECT id, fullName, email, phone, cell
-  FROM person
-  WHERE id = ?
+  SELECT p.id, p.fullName, p.email, p.phone, p.cell, v.name AS villageName
+  FROM person p
+  LEFT JOIN village v ON p.villageId = v.id
+  WHERE p.id = ?
 `;
 
 const GET_VOLUNTEERS_BY_CAPABILITY = `

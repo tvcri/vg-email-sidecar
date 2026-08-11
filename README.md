@@ -117,6 +117,19 @@ or that has lost its volunteer, is **marked sent without emailing** rather than
 marked failed — skipping is the correct outcome, and a `failedAt` row would
 read as a false alarm during triage.
 
+### `member_welcome` — membership activated
+
+Payload-driven (no service request): the row carries `serviceRequestId` NULL
+and `payload = '{"memberPersonId": <person.id>}'`, inserted by the VG app when
+the membership coordinator activates a membership (requires the migration-0017
+`payload` column). The sidecar looks the person up at send time and emails
+them the approved welcome/confirmation copy — the org logo at top (attached
+as a CID inline image), and a bold sentence naming the member's village
+("…membership in Wood River Village."). Sent from
+`volunteer@villagecommonri.org`. Subject:
+`Welcome to The Village Common of Rhode Island!`. A person with no email (or
+a payload with no `memberPersonId`) marks the event failed.
+
 Unknown event types are marked failed.
 
 ## PIN Webhook (`POST /internal/send-pin`)

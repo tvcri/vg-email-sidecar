@@ -34,7 +34,7 @@ function encodeHeader(text) {
   return `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`;
 }
 
-function buildRawMessage({ to, bcc, subject, html, from }) {
+function buildRawMessage({ to, bcc, subject, html, from, inlineImages }) {
   // Gmail requires a recipient somewhere (To, Cc, or Bcc) — not specifically a
   // To: header. When `to` is omitted we send a "blind" message carried by Bcc:
   // and leave out To: entirely, so guard against the no-recipient case.
@@ -42,16 +42,49 @@ function buildRawMessage({ to, bcc, subject, html, from }) {
     throw new Error('buildRawMessage requires either a "to" or "bcc" recipient');
   }
 
-  const messageParts = [
+  const headers = [
     `From: ${from}`,
     ...(to ? [`To: ${to}`] : []),
     ...(bcc ? [`Bcc: ${bcc}`] : []),
     `Subject: ${encodeHeader(subject)}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=UTF-8',
-    '',
-    html,
   ];
+
+  let messageParts;
+  if (!inlineImages || inlineImages.length === 0) {
+    messageParts = [
+      ...headers,
+      'Content-Type: text/html; charset=UTF-8',
+      '',
+      html,
+    ];
+  } else {
+    // multipart/related: the HTML part first, then each image part referenced
+    // from the HTML by cid:. A fixed boundary is safe — every part we emit is
+    // base64 or our own HTML, neither of which contains the marker.
+    const boundary = 'vg-sidecar-related-8c4f1d2e';
+    messageParts = [
+      ...headers,
+      `Content-Type: multipart/related; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      '',
+      html,
+      ...inlineImages.flatMap((img) => [
+        `--${boundary}`,
+        `Content-Type: ${img.contentType}`,
+        'Content-Transfer-Encoding: base64',
+        `Content-ID: <${img.cid}>`,
+        `Content-Disposition: inline; filename="${img.cid}"`,
+        '',
+        // RFC 2045 asks for encoded lines of at most 76 characters.
+        img.content.match(/.{1,76}/g).join('\r\n'),
+      ]),
+      `--${boundary}--`,
+    ];
+  }
+
   const message = messageParts.join('\r\n');
 
   return Buffer.from(message)
@@ -74,7 +107,7 @@ function verifyCredentials() {
 
 // kind selects the sending mailbox (see MAILBOX_BY_KIND in config.js).
 // Callers never pass a mailbox; omitted/unknown kinds send from services@.
-async function sendEmail({ to, bcc, subject, html, kind }) {
+async function sendEmail({ to, bcc, subject, html, kind, inlineImages }) {
   try {
     const mailbox = getMailboxForKind(kind);
     const auth = getAuthClient(mailbox);
@@ -86,6 +119,7 @@ async function sendEmail({ to, bcc, subject, html, kind }) {
       subject,
       html,
       from: `${getMailboxDisplayName(mailbox)} <${mailbox}>`,
+      inlineImages,
     });
 
     const res = await gmail.users.messages.send({
@@ -100,4 +134,4 @@ async function sendEmail({ to, bcc, subject, html, kind }) {
   }
 }
 
-module.exports = { sendEmail, verifyCredentials };
+module.exports = { sendEmail, verifyCredentials, buildRawMessage };
