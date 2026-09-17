@@ -487,10 +487,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                           <tr>
                             <td valign='top'>Requesting Member:</td>
                             <td valign='top'>
-                              ${memberName}<br>
-                              ${memberAddressBlock}<br>
-                              ${memberPhone || ''}<br>
-                              ${memberCell ? `cell: ${memberCell}` : ''}
+                              ${memberAddressBlock}
                             </td>
                           </tr>
                           <tr>
