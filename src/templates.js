@@ -48,6 +48,16 @@ function withBlankAddressNulls(rd) {
   return out;
 }
 
+// Special Instructions value for the volunteer confirmation emails. When the
+// member has none we say so explicitly, so the volunteer can tell it isn't
+// missing information.
+function formatSpecialInstructions(serviceNotes) {
+  if (serviceNotes == null || String(serviceNotes).trim() === '') {
+    return '<em>There are no special instructions for this member.</em>';
+  }
+  return serviceNotes;
+}
+
 // Starting location for a service request. Prefers the authoritative start*
 // fields (added by the VG sr-starting-address migration); falls back to the
 // requesting member's home address when they are NULL or the columns don't exist
@@ -211,9 +221,10 @@ function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     <div>Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br>
-                    Short Description: ${description || ''}<br><br>
-                    You are now confirmed as a service provider for this service request.</div>
+                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br><br>
+                    You are now confirmed as a volunteer for this service request.<br><br>
+                    <strong>Important: Please be sure to call the member as soon as possible to let them know you will be helping them and to arrange the details.</strong><br><br>
+                    Short Description: ${description || ''}</div>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table style='font-family: Arial, sans-serif; font-size: 12px; font-weight: normal;' cellspacing='0' cellpadding='3' border='0'>
                         <tbody>
@@ -231,8 +242,7 @@ function buildHomeHelpConfirmedRequestTemplate(volunteerName, requestData) {
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
-                    Please call the member as soon as possible to arrange a time that works for both of you.<br>
+                    Special Instructions for this member: ${formatSpecialInstructions(serviceNotes)}<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
@@ -470,9 +480,10 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                 <tr>
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
-                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br>
-                    Short Description: ${description || ''}<br><br>
-                    You are now confirmed as a service provider for this service request.<br>
+                    Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br><br>
+                    You are now confirmed as a volunteer for this service request.<br><br>
+                    <strong>Important: Please be sure to call the member as soon as possible to let them know you will be their driver and to confirm details of the ride.</strong><br><br>
+                    Short Description: ${description || ''}<br>
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
@@ -527,8 +538,7 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
-                    Please call the member as soon as possible and let them know you will be their service provider. In addition, call the night before or the day of the service to reconfirm with the member.<br>
+                    Special Instructions for this member: ${formatSpecialInstructions(serviceNotes)}<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
@@ -730,8 +740,9 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
                     Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br><br>
-                    Short Description: ${description || ''}<br><br>
-                    You are now confirmed as a service provider for this service request.
+                    You are now confirmed as a volunteer for this service request.<br><br>
+                    <strong>Important: Please be sure to call the member as soon as possible to let them know you will be doing their errand and to confirm details.</strong><br><br>
+                    Short Description: ${description || ''}
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
@@ -770,8 +781,7 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
-                    Please call the member as soon as possible to let them know you will be their service provider. In addition, call the night before or the day of the service to reconfirm with the member.<br>
+                    Special Instructions for this member: ${formatSpecialInstructions(serviceNotes)}<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
@@ -936,8 +946,9 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
                   <td align='left' style='font-family: Arial, Sans-Serif;font-size:12px;font-weight:normal;border-bottom:1px solid #cdcdcd;'>
                     Dear ${volunteerName},<br><br>
                     Thank you for agreeing to help The Village Common of RI provide ${serviceName} for ${memberName}.<br><br>
-                    Short Description: ${description || ''}<br><br>
-                    You are now confirmed as a service provider for this service request.
+                    You are now confirmed as a volunteer for this service request.<br><br>
+                    <strong>Important: Please be sure to call the member as soon as possible to let them know you will be helping them and to arrange the details.</strong><br><br>
+                    Short Description: ${description || ''}
                     <div style='margin-left:15px;margin-top:4px;margin-bottom:10px;'>
                       <table cellpadding='3' cellspacing='0' border='0' style='font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;'>
                         <tbody>
@@ -955,8 +966,7 @@ function buildTechSupportConfirmedRequestTemplate(volunteerName, requestData) {
                       </table>
                     </div>
                     <br>
-                    Special Instructions for this member: ${serviceNotes || ''}<br><br>
-                    Please call the member as soon as possible to arrange a time that works for both of you.<br>
+                    Special Instructions for this member: ${formatSpecialInstructions(serviceNotes)}<br>
                     <br>
                     If you have any questions or need to cancel this service, please call 401-441-5240 or reply to this email.<br>
                     <br>
@@ -1094,7 +1104,7 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                       </table>
                     </div>
                     <br>
-                    Your service provider(s) will be:<br><br>
+                    Your volunteer(s) will be:<br><br>
                     ${volunteerContact}<br><br>
                     ${serviceNotes ? `<br>` : ''}
                     If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
@@ -1177,7 +1187,7 @@ function buildHomeHelpMemberConfirmedTemplate(memberFirstName, volunteerData, re
                       </table>
                     </div>
                     <br>
-                    Your service provider(s) will be:<br><br>
+                    Your volunteer(s) will be:<br><br>
                     ${volunteerContact}<br><br>
                     If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
                     <br>
@@ -1288,7 +1298,7 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
                       </table>
                     </div>
                     <br>
-                    Your service provider(s) will be:<br><br>
+                    Your volunteer(s) will be:<br><br>
                     ${volunteerContact}<br><br>
                     If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
                     <br>
@@ -1370,7 +1380,7 @@ function buildTechSupportMemberConfirmedTemplate(memberFirstName, volunteerData,
                       </table>
                     </div>
                     <br>
-                    Your service provider(s) will be:<br><br>
+                    Your volunteer(s) will be:<br><br>
                     ${volunteerContact}<br><br>
                     If you have any questions or need to cancel this service, please call  401-441-5240  or reply to the email.<br>
                     <br>
@@ -1561,7 +1571,7 @@ function buildMemberCancelledTemplate(memberFirstName, requestData) {
                       </table>
                     </div>
                     <br>
-                    If a volunteer provider was confirmed for this request, s/he has also been sent a copy of this email.<br>
+                    If a volunteer was confirmed for this request, they have also been sent a copy of this email.<br>
                     <br>
                     If you have any questions or need to reschedule this service, please call 401-441-5240 or reply to the email.<br>
                     <br>
@@ -1873,7 +1883,7 @@ function buildMemberReminderTemplate(memberFirstName, volunteerData, requestData
                         </tbody>
                       </table>
                       <br>
-                      <u>Your service provider(s)</u><br>
+                      <u>Your volunteer(s)</u><br>
                       ${providerContact}<br><br>
                       <u>Short Description</u><br>
                       ${description || ''}<br><br>

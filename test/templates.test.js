@@ -31,7 +31,7 @@ test('buildMemberCancelledTemplate greets the member and states the cancellation
 
 test('buildMemberCancelledTemplate includes the volunteer-copy notice unconditionally', () => {
   const html = buildMemberCancelledTemplate('Zelda', errandsRequest)
-  assert.match(html, /If a volunteer provider was confirmed for this request, s\/he has also been sent a copy of this email\./)
+  assert.match(html, /If a volunteer was confirmed for this request, they have also been sent a copy of this email\./)
 })
 
 test('buildMemberCancelledTemplate shows pickup time for rides, date only for flexible services', () => {

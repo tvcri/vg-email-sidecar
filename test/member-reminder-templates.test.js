@@ -85,12 +85,12 @@ const techRequest = {
 
 const allRequests = [ridesRequest, errandsRequest, homeHelpRequest, techRequest]
 
-test('renders the member intro, provider heading, and closing copy for every service type', () => {
+test('renders the member intro, volunteer heading, and closing copy for every service type', () => {
   for (const rd of allRequests) {
     const html = buildMemberReminderTemplate('Zelda', volunteerData, rd)
     assert.match(html, /Hello Zelda\./)
     assert.match(html, /This is a reminder about a service you requested with <strong>The Village Common of RI<\/strong>\./)
-    assert.match(html, /<u>Your service provider\(s\)<\/u>/)
+    assert.match(html, /<u>Your volunteer\(s\)<\/u>/)
     assert.match(html, /<u>Short Description<\/u>/)
     // PDF wording: "reply to the email", not "this email"
     assert.match(html, /please call 401-441-5240 or reply to the email\./)
