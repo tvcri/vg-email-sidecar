@@ -206,6 +206,27 @@ npm test    # node --test over test/*.test.js
 Tests cover the pure pieces: template builders, subject/ordinal logic,
 recipient derivation. There is no DB or Gmail integration harness.
 
+## Building and Publishing
+
+CI publishes the image. On every push to `main` (or a manual run),
+`.github/workflows/publish-docker.yml` runs `npm test`, then builds the
+`Dockerfile` and pushes two tags to Docker Hub:
+
+- `carlsmig/vg-email-sidecar:<short sha>` (7 characters, e.g. `2aaede8`)
+- `carlsmig/vg-email-sidecar:latest`
+
+The image carries an `org.opencontainers.image.revision` label with the full
+commit SHA, and the run log ends with the pushed digest. Pull requests run the
+tests only (`.github/workflows/test.yml`) and never see the Docker Hub token.
+The publish workflow needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
+Actions secrets.
+
+Publishing doesn't deploy: the production host pins the image by digest.
+
+For a local build, run `./build.sh`. It produces the same tags and revision
+label. `./build.sh --push` also pushes them, but it's for emergencies only,
+such as when Actions is unavailable.
+
 ## Troubleshooting
 
 ### Gmail send failures
