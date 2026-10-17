@@ -1,0 +1,72 @@
+name: Publish Docker image
+env:
+  DOCKERHUB_REPOSITORY: carlsmig/vg-email-sidecar
+# No pull_request trigger here: this workflow holds the Docker Hub token and the
+# repo is public. PR tests run in test.yml, which has no secrets.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+  build-push:
+    name: Build and push
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+      - name: Prepare variables
+        id: prep
+        run: |
+          DOCKER_IMAGE="${{ env.DOCKERHUB_REPOSITORY }}"
+          # 7-char short SHA, matching the tags build.sh has always pushed
+          SHA="$(git rev-parse --short=7 HEAD)"
+          {
+            echo "sha=${SHA}"
+            echo "tags=${DOCKER_IMAGE}:${SHA},${DOCKER_IMAGE}:latest"
+            echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } >> "$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          file: ./Dockerfile
+          push: true
+          # Keep :latest a single image manifest (as build.sh produces) rather
+          # than an index with attestation manifests.
+          provenance: false
+          sbom: false
+          tags: ${{ steps.prep.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=vg-email-sidecar
+            org.opencontainers.image.description=Email sidecar for Village Green service requests
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ steps.prep.outputs.created }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Image digest
+        run: echo "${{ env.DOCKERHUB_REPOSITORY }}:${{ steps.prep.outputs.sha }} ${{ steps.docker_build.outputs.digest }}"
