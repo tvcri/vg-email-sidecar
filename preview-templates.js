@@ -29,7 +29,7 @@ const volunteerData = {
 
 const ridesRequest = {
   id: 1001,
-  serviceName: 'Ride: Activity/Event',
+  serviceName: 'Ride: Medical Appnt',
   memberName: 'Zelda Fitzgerald',
   memberEmail: 'zelda@example.com',
   memberPhone: '401-555-0100',
@@ -38,13 +38,15 @@ const ridesRequest = {
   memberCity: 'Providence',
   memberState: 'RI',
   memberZip: '02903',
-  description: 'This is a test request. Please do not take any action.',
+  description: 'Round trip ride to an eye doctor appointment. Member will call when ready to be picked up if the visit runs long.',
   serviceDate: '2025-12-26',
   timesFlexible: false,
-  startTime: '06:00:00',
-  apptTime: '06:30:00',
-  returnTime: null,
-  finishTime: '07:00:00',
+  // A complete round trip: every optional time row renders, so preview images
+  // never look like they are missing fields.
+  startTime: '09:15:00',
+  apptTime: '10:00:00',
+  returnTime: '11:30:00',
+  finishTime: '12:00:00',
   // Authoritative start* fields (VG sr-starting-address migration). Errands below intentionally
   // omits them so its preview exercises the member-home fallback.
   start: 'Laurelmead Cooperative',
@@ -53,11 +55,11 @@ const ridesRequest = {
   startState: 'RI',
   startZip: '02906',
   startPhone: '401-555-0102',
-  destination: 'Roger Williams Park Zoo',
-  address: '1000 Elmwood Ave',
+  destination: 'Bayside Eye Associates',
+  address: '200 Waterman St',
   city: 'Providence',
   state: 'RI',
-  zip: '02907',
+  zip: '02906',
   transportationType: 'Round Trip',
   serviceNotes: 'Member uses a walker.',
   emergencyContactName: 'Scott Fitzgerald',
