@@ -12,6 +12,7 @@ const {
 } = require('./db');
 const { sendEmail } = require('./gmail');
 const { getTestConfig } = require('./config');
+const { easternToday, pauseSuppressesOpen } = require('./pause');
 const {
   buildHomeHelpOpenRequestTemplate,
   buildHomeHelpConfirmedRequestTemplate,
@@ -227,7 +228,7 @@ function shouldSkipReminder(requestData) {
   return false;
 }
 
-async function resolveRecipientsForOpenRequest(requestData) {
+async function resolveRecipientsForOpenRequest(requestData, today = easternToday()) {
   const testConfig = getTestConfig();
   const capability = getCapabilityFromServiceType(requestData.serviceName);
 
@@ -236,11 +237,17 @@ async function resolveRecipientsForOpenRequest(requestData) {
     return null;
   }
 
-  const volunteers = await getVolunteersByCapability(requestData.villageId, capability);
+  const pool = await getVolunteersByCapability(requestData.villageId, capability);
 
-  if (volunteers.length === 0) {
+  if (pool.length === 0) {
     console.warn(`No volunteers found for capability: ${capability}`);
     return null;
+  }
+
+  // Paused volunteers are dropped at send time (spec §4.1).
+  const volunteers = pool.filter(v => !pauseSuppressesOpen(v, { today, serviceDate: requestData.serviceDate }));
+  if (volunteers.length === 0) {
+    return { suppressed: true };
   }
 
   const volunteerEmails = volunteers.map(v => v.email).filter(Boolean);
@@ -530,7 +537,11 @@ async function pollOnce() {
 
       if (routing.sendToBccVolunteers) {
         const recipients = await resolveRecipientsForOpenRequest(requestData);
-        if (recipients) {
+        if (recipients && recipients.suppressed) {
+          console.log(`[${new Date().toISOString()}] Open request ${subjectNumber}: every volunteer in the pool is paused; no email sent`);
+          await markNotificationSent(event.id, []);
+          sent++;
+        } else if (recipients) {
           const { subject, description: openDescription } = await buildOpenSubjectAndDescription({
             subjectNumber,
             memberName: requestData.memberName,
@@ -753,4 +764,4 @@ async function pollOnce() {
   console.log(`[${new Date().toISOString()}] Poll complete: ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { pollOnce, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription, shouldSkipReminder, WELCOME_LOGO };
+module.exports = { pollOnce, resolveRecipientsForOpenRequest, deriveRecipientsForEvent, getSubjectOrdinal, getBodyOrdinalPrefix, buildSubject, buildOpenSubjectAndDescription, shouldSkipReminder, WELCOME_LOGO };
