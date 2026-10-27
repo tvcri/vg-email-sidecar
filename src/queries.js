@@ -113,6 +113,9 @@ const GET_PERSON = `
   WHERE p.id = ?
 `;
 
+// This query joins volunteer_pause, a table created by Village Green migration
+// 0031. This sidecar change must not deploy until production VG is at 0031;
+// before that, every open event fails on the missing table.
 const GET_VOLUNTEERS_BY_CAPABILITY = `
   SELECT DISTINCT
     p.id,
