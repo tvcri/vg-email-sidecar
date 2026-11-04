@@ -221,7 +221,16 @@ tests only (`.github/workflows/test.yml`) and never see the Docker Hub token.
 The publish workflow needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
 Actions secrets.
 
-Publishing doesn't deploy: the production host pins the image by digest.
+Merging to `main` deploys. The production host pins the image by digest, and a
+cron poller on that host checks `:latest` every 5 minutes. When the digest
+changes, it rewrites the pin, recreates the `email` container and health-checks
+it, rolling back if the check fails. Merges that only change `README.md` or
+`docs/` skip the publish workflow, so they don't deploy.
+
+To hold deploys, comment out the poller's cron line. If you edit the pin by
+hand, keep the `repo@sha256:...` form: with a tag added
+(`repo:abc1234@sha256:...`), the poller fails on every run. Poller failures
+raise an Azure alert.
 
 For a local build, run `./build.sh`. It produces the same tags and revision
 label. `./build.sh --push` also pushes them, but it's for emergencies only,
