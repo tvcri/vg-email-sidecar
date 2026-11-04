@@ -113,15 +113,22 @@ const GET_PERSON = `
   WHERE p.id = ?
 `;
 
+// This query joins volunteer_pause, a table created by Village Green migration
+// 0031. This sidecar change must not deploy until production VG is at 0031;
+// before that, every open event fails on the missing table.
 const GET_VOLUNTEERS_BY_CAPABILITY = `
   SELECT DISTINCT
     p.id,
     p.fullName,
-    p.email
+    p.email,
+    DATE_FORMAT(vp.startDate, '%Y-%m-%d') AS pauseStartDate,
+    DATE_FORMAT(vp.endDate, '%Y-%m-%d') AS pauseEndDate,
+    vp.scope AS pauseScope
   FROM active_volunteer v
   JOIN person p ON v.personId = p.id
   JOIN volunteer_capability vc ON v.id = vc.volunteerId
   JOIN capability c ON vc.capabilityId = c.id
+  LEFT JOIN volunteer_pause vp ON vp.volunteerId = v.id
   WHERE p.villageId = ? AND c.name = ?
 `;
 
