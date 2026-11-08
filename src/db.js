@@ -70,8 +70,24 @@ async function markNotificationFailed(id) {
 async function getServiceRequest(serviceRequestId) {
   return withConnection(async (conn) => {
     const [rows] = await conn.query(queries.GET_SERVICE_REQUEST, [serviceRequestId]);
-    return rows[0] || null;
+    const requestData = rows[0] || null;
+    if (requestData) requestData.destinations = await getDestinations(conn, serviceRequestId);
+    return requestData;
   });
+}
+
+// TEMPORARY: until production VG has run migration 0032 the destination table
+// does not exist. Return no list then, and the templates fall back to the flat
+// destination columns, which is exactly what they showed before. Remove the
+// catch once 0032 is in production.
+async function getDestinations(conn, serviceRequestId) {
+  try {
+    const [rows] = await conn.query(queries.GET_SERVICE_REQUEST_DESTINATIONS, [serviceRequestId]);
+    return rows;
+  } catch (err) {
+    if (err.code === 'ER_NO_SUCH_TABLE') return [];
+    throw err;
+  }
 }
 
 async function getVolunteer(volunteerId) {

@@ -77,6 +77,39 @@ function formatStartingLocation(rd) {
   return '';
 }
 
+// A Ride or Errand request's destinations, in entry order. VG keeps them in
+// service_request_destination and db.js attaches them as rd.destinations. When
+// that list is missing or empty (a schema before VG migration 0032, or a
+// request with no destination rows) the flat destination columns stand in: VG
+// mirrors the first destination into them on every save.
+function destinationList(rd) {
+  const list = Array.isArray(rd.destinations) && rd.destinations.length ? rd.destinations : [rd];
+  return list.map((d) => ({
+    destination: d.destination || '',
+    address: d.address || '',
+    city: d.city || '',
+    state: d.state || '',
+    zip: d.zip || '',
+  }));
+}
+
+function destinationMapUrl(d) {
+  return d.destination && d.address
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(`${d.address},${d.city},${d.state},${d.zip}`).replace(/%20/g, '+')}`
+    : '';
+}
+
+// Renders each destination with the template's own block and lists them in
+// sequence, a blank line apart. The label goes plural only when more than one
+// destination actually renders, so a one-destination email reads as before.
+function renderDestinations(rd, renderOne) {
+  const blocks = destinationList(rd).map(renderOne).filter(Boolean);
+  return {
+    html: blocks.join('<br><br>'),
+    label: blocks.length > 1 ? 'Destinations' : 'Destination',
+  };
+}
+
 function buildHomeHelpOpenRequestTemplate(volunteerName, requestData) {
   requestData = withBlankAddressNulls(requestData);
   const {
@@ -283,11 +316,6 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
     memberState,
     memberZip,
     description,
-    address,
-    city,
-    state,
-    zip,
-    destination,
     serviceDate,
     timesFlexible,
     startTime,
@@ -308,8 +336,11 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
   const startingLocation = formatStartingLocation(requestData);
-  const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
-  const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
+  const destinations = renderDestinations(requestData, (d) => {
+    const mapUrl = destinationMapUrl(d);
+    const block = d.destination && d.address ? `${d.destination}<br>${d.address}<br>${d.city}, ${d.state} ${d.zip}` : d.destination;
+    return `${block}${mapUrl ? `<br><br><a href='${mapUrl}' target='_blank'>Show destination on map</a>` : ''}`;
+  });
 
   const html = `<html>
 <body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
@@ -364,10 +395,9 @@ function buildRidesOpenRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
                           <tr>
-                            <td valign='top'>Destination:</td>
+                            <td valign='top'>${destinations.label}:</td>
                             <td valign='top'>
-                              ${destinationAddress}
-                              ${mapUrl ? `<br><br><a href='${mapUrl}' target='_blank'>Show destination on map</a>` : ''}
+                              ${destinations.html}
                             </td>
                           </tr>
                           ${returnPickupTime ? `<tr>
@@ -426,11 +456,6 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
     memberState,
     memberZip,
     description,
-    address,
-    city,
-    state,
-    zip,
-    destination,
     serviceDate,
     timesFlexible,
     startTime,
@@ -454,8 +479,11 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone || ''}<br>${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
   const startingLocation = formatStartingLocation(requestData);
-  const destinationAddress = destination && address ? `${destination}<br>${address}<br>${city}, ${state} ${zip}` : (destination || '');
-  const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
+  const destinations = renderDestinations(requestData, (d) => {
+    const mapUrl = destinationMapUrl(d);
+    const block = d.destination && d.address ? `${d.destination}<br>${d.address}<br>${d.city}, ${d.state} ${d.zip}` : d.destination;
+    return `${block}${mapUrl ? `<br><br><a href='${mapUrl}' target='_blank'>Show on map</a>` : ''}`;
+  });
 
   const html = `<html>
 <body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
@@ -516,10 +544,9 @@ function buildRidesConfirmedRequestTemplate(volunteerName, requestData) {
                             <td valign='top'>${appointmentTime}</td>
                           </tr>` : ''}
                           <tr>
-                            <td valign='top'>Destination:</td>
+                            <td valign='top'>${destinations.label}:</td>
                             <td valign='top'>
-                              ${destinationAddress}
-                              ${mapUrl ? `<br><br><a href='${mapUrl}' target='_blank'>Show on map</a>` : ''}
+                              ${destinations.html}
                             </td>
                           </tr>
                           ${returnPickupTime ? `<tr>
@@ -579,11 +606,6 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
     memberState,
     memberZip,
     description,
-    address,
-    city,
-    state,
-    zip,
-    destination,
     serviceDate,
     transportationType,
     serviceNotes,
@@ -594,8 +616,11 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone ? `${memberPhone}<br>` : ''}${memberCell ? `${memberCell} (cell)` : ''}`
     : '';
   const startingLocation = formatStartingLocation(requestData);
-  const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
-  const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
+  const destinations = renderDestinations(requestData, (d) => {
+    const mapUrl = destinationMapUrl(d);
+    const block = d.destination && d.address ? `${d.destination}<br>${d.address}<br>${d.city}, ${d.state} ${d.zip}` : d.destination;
+    return `${block}${mapUrl ? `<br><a href='${mapUrl}' target='_blank'>Show destination on map</a>` : ''}`;
+  });
 
   const html = `<html>
 <body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
@@ -641,10 +666,9 @@ function buildErrandsOpenRequestTemplate(volunteerName, requestData) {
                             </td>
                           </tr>
                           <tr>
-                            <td valign='top'>Destination:</td>
+                            <td valign='top'>${destinations.label}:</td>
                             <td valign='top'>
-                              ${destinationAddress}
-                              ${mapUrl ? `<br><a href='${mapUrl}' target='_blank'>Show destination on map</a>` : ''}
+                              ${destinations.html}
                             </td>
                           </tr>
                           ${transportationType ? `<tr>
@@ -695,11 +719,6 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
     memberState,
     memberZip,
     description,
-    address,
-    city,
-    state,
-    zip,
-    destination,
     serviceDate,
     transportationType,
     serviceNotes,
@@ -713,8 +732,11 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
     ? `${memberName}<br>${memberAddress}<br>${memberCity}, ${memberState} ${memberZip}<br>${memberPhone ? `${memberPhone}<br>` : ''}${memberCell ? `cell: ${memberCell}` : ''}`
     : '';
   const startingLocation = formatStartingLocation(requestData);
-  const destinationAddress = destination && address ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}` : (destination || '');
-  const mapUrl = destination && address ? `https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}` : '';
+  const destinations = renderDestinations(requestData, (d) => {
+    const mapUrl = destinationMapUrl(d);
+    const block = d.destination && d.address ? `${d.destination}<br>${d.address}<br>${d.city}, ${d.state} ${d.zip}` : d.destination;
+    return `${block}${mapUrl ? `<br><a href='${mapUrl}' target='_blank'>Show on map</a>` : ''}`;
+  });
 
   const html = `<html>
 <body style="font-family:Arial, Sans-Serif; font-size:12px; font-weight:normal;">
@@ -767,10 +789,9 @@ function buildErrandsConfirmedRequestTemplate(volunteerName, requestData) {
                             </td>
                           </tr>
                           <tr>
-                            <td valign='top'>Destination:</td>
+                            <td valign='top'>${destinations.label}:</td>
                             <td valign='top'>
-                              ${destinationAddress}
-                              ${mapUrl ? `<br><a href='${mapUrl}' target='_blank'>Show on map</a>` : ''}
+                              ${destinations.html}
                             </td>
                           </tr>
                           ${transportationType ? `<tr>
@@ -1000,11 +1021,6 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
   const {
     serviceName,
     description,
-    address,
-    city,
-    state,
-    zip,
-    destination,
     serviceDate,
     timesFlexible,
     startTime,
@@ -1021,9 +1037,9 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
   const returnPickupTime = formatCivilTime(returnTime);
   const dropoffTime = formatCivilTime(finishTime);
 
-  const destinationAddress = destination && address
-    ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
-    : (destination || '');
+  const destinations = renderDestinations(requestData, (d) => (d.destination && d.address
+    ? `${d.destination}<br><a href='${destinationMapUrl(d)}' target='_blank'>${d.address}</a><br>${d.city}, ${d.state} ${d.zip}`
+    : d.destination));
   const startingLocation = formatStartingLocation(requestData);
 
   const volunteerContact = [
@@ -1083,9 +1099,9 @@ function buildRidesMemberConfirmedTemplate(memberFirstName, volunteerData, reque
                             <td valign='top'>${startingLocation}</td>
                           </tr>
                           <tr>
-                            <td valign='top'>Destination:</td>
+                            <td valign='top'>${destinations.label}:</td>
                             <td valign='top'>
-                              ${destinationAddress}
+                              ${destinations.html}
                             </td>
                           </tr>
                           ${returnPickupTime ? `<tr>
@@ -1216,20 +1232,15 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
   const {
     serviceName,
     description,
-    address,
-    city,
-    state,
-    zip,
-    destination,
     serviceDate,
     transportationType,
     serviceNotes,
   } = requestData;
 
   const startDate = formatServiceDate(serviceDate);
-  const destinationAddress = destination && address
-    ? `${destination}<br><a href='https://maps.google.com/maps?q=${encodeURIComponent(`${address},${city},${state},${zip}`).replace(/%20/g, '+')}' target='_blank'>${address}</a><br><br>${city}, ${state} ${zip}`
-    : (destination || '');
+  const destinations = renderDestinations(requestData, (d) => (d.destination && d.address
+    ? `${d.destination}<br><a href='${destinationMapUrl(d)}' target='_blank'>${d.address}</a><br>${d.city}, ${d.state} ${d.zip}`
+    : d.destination));
   const startingLocation = formatStartingLocation(requestData);
 
   const volunteerContact = [
@@ -1281,8 +1292,8 @@ function buildErrandsMemberConfirmedTemplate(memberFirstName, volunteerData, req
                             <td valign='top'>${startingLocation}</td>
                           </tr>
                           <tr>
-                            <td valign='top'>Destination:</td>
-                            <td valign='top'>${destinationAddress}</td>
+                            <td valign='top'>${destinations.label}:</td>
+                            <td valign='top'>${destinations.html}</td>
                           </tr>
                           ${transportationType ? `<tr>
                             <td valign='top'>Transportation:</td>
@@ -1687,11 +1698,6 @@ function buildReminderTemplate(recipientFirstName, requestData) {
     memberPhone,
     memberCell,
     description,
-    destination,
-    address,
-    city,
-    state,
-    zip,
     serviceDate,
     timesFlexible,
     startTime,
@@ -1725,12 +1731,12 @@ function buildReminderTemplate(recipientFirstName, requestData) {
                     ${formatStartingLocation(requestData)}<br><br>`
     : '';
 
-  const destinationAddress = destination && address
-    ? `${destination}<br>${address}<br><br>${city}, ${state} ${zip}`
-    : (destination || '');
-  const destinationBlock = destination
-    ? `<u>Destination</u><br>
-                      ${destinationAddress}<br><br>
+  const destinations = renderDestinations(requestData, (d) => (d.destination && d.address
+    ? `${d.destination}<br>${d.address}<br>${d.city}, ${d.state} ${d.zip}`
+    : d.destination));
+  const destinationBlock = destinations.html
+    ? `<u>${destinations.label}</u><br>
+                      ${destinations.html}<br><br>
                       `
     : '';
 
