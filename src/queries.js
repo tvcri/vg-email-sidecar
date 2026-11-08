@@ -92,6 +92,21 @@ const GET_SERVICE_REQUEST = `
   WHERE sr.id = ?
 `;
 
+// service_request_destination is created by VG migration 0032. Order is id
+// ascending: VG inserts a request's destinations in entry order on every save.
+const GET_SERVICE_REQUEST_DESTINATIONS = `
+  SELECT
+    destination,
+    address,
+    city,
+    state,
+    LPAD(zip, 5, '0') AS zip,
+    phone
+  FROM service_request_destination
+  WHERE serviceRequestId = ?
+  ORDER BY id
+`;
+
 const GET_VOLUNTEER = `
   SELECT
     v.id,
@@ -144,6 +159,7 @@ module.exports = {
   getPendingEventsQuery,
   setPendingEventsHasPayload,
   GET_SERVICE_REQUEST,
+  GET_SERVICE_REQUEST_DESTINATIONS,
   MARK_NOTIFICATION_SENT,
   MARK_NOTIFICATION_FAILED,
   GET_VOLUNTEER,

@@ -6,7 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const {
   buildHomeHelpConfirmedRequestTemplate,
+  buildRidesOpenRequestTemplate,
   buildRidesConfirmedRequestTemplate,
+  buildErrandsOpenRequestTemplate,
   buildErrandsConfirmedRequestTemplate,
   buildTechSupportConfirmedRequestTemplate,
   buildRidesMemberConfirmedTemplate,
@@ -129,6 +131,27 @@ const techRequest = {
   emergencyContactPhone: null,
 };
 
+// Multiple destinations (VG migration 0032): every email lists them in entry
+// order. The flat destination columns mirror the first one, as VG writes them.
+const ridesMultiRequest = {
+  ...ridesRequest,
+  description: 'Eye doctor, then a stop at the pharmacy on the way home.',
+  destinations: [
+    { destination: ridesRequest.destination, address: ridesRequest.address, city: ridesRequest.city, state: ridesRequest.state, zip: ridesRequest.zip },
+    { destination: 'CVS Pharmacy', address: '235 Thayer St', city: 'Providence', state: 'RI', zip: '02906' },
+  ],
+};
+
+const errandsMultiRequest = {
+  ...errandsRequest,
+  description: 'Groceries from Stop & Shop and a prescription pickup.',
+  destinations: [
+    { destination: errandsRequest.destination, address: errandsRequest.address, city: errandsRequest.city, state: errandsRequest.state, zip: errandsRequest.zip },
+    { destination: 'CVS Pharmacy', address: '235 Thayer St', city: 'Providence', state: 'RI', zip: '02906' },
+    { destination: 'Rochambeau Library', address: '708 Hope St', city: 'Providence', state: 'RI', zip: '02906' },
+  ],
+};
+
 const outDir = path.join(__dirname, 'preview');
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -164,6 +187,15 @@ const renders = [
   ['reminder-member-errands.html', buildMemberReminderTemplate('Zelda', volunteerData, errandsRequest)],
   ['reminder-member-homhelp.html', buildMemberReminderTemplate('Zelda', volunteerData, homeHelpRequest)],
   ['reminder-member-techsup.html', buildMemberReminderTemplate('Zelda', volunteerData, techRequest)],
+  // Multiple destinations: the four emails that carry a destination.
+  ['multi-rides-open.html',          buildRidesOpenRequestTemplate('Joanne', ridesMultiRequest)],
+  ['multi-rides-volunteer.html',     buildRidesConfirmedRequestTemplate('Joanne', ridesMultiRequest)],
+  ['multi-rides-member.html',        buildRidesMemberConfirmedTemplate('Zelda', volunteerData, ridesMultiRequest)],
+  ['multi-reminder-rides.html',      buildReminderTemplate('Joanne', ridesMultiRequest)],
+  ['multi-errands-open.html',        buildErrandsOpenRequestTemplate('Joanne', errandsMultiRequest)],
+  ['multi-errands-volunteer.html',   buildErrandsConfirmedRequestTemplate('Joanne', errandsMultiRequest)],
+  ['multi-errands-member.html',      buildErrandsMemberConfirmedTemplate('Zelda', volunteerData, errandsMultiRequest)],
+  ['multi-reminder-errands.html',    buildReminderTemplate('Joanne', errandsMultiRequest)],
   // New-member welcome/confirmation email (member_welcome events).
   ['member-welcome.html', buildMemberWelcomeTemplate({ firstName: 'Zelda', villageName: 'Wood River' })
     .replace('cid:tvcri-logo', logoDataUri)],
